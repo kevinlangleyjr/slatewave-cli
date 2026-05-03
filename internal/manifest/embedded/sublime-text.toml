@@ -1,0 +1,20 @@
+[theme]
+slug = "sublime-text"
+name = "Slatewave for Sublime Text"
+category = "editor"
+# macOS path. Linux dest differs — left as a v0.0.3 enhancement.
+detect_command = "test -d $HOME/Library/Application\\ Support/Sublime\\ Text"
+
+[install]
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/sublime-text-slatewave.git"
+clone_dest = "$HOME/Library/Application Support/Sublime Text/Packages/Slatewave"
+
+[activate]
+# Sublime auto-loads anything under Packages/. The bundled command
+# palette entry "Slatewave: Activate Color Scheme & Theme" flips both
+# at once — the user runs that from inside Sublime.
+type = "none"
+
+[verify]
+command = "test -d $HOME/Library/Application\\ Support/Sublime\\ Text/Packages/Slatewave"

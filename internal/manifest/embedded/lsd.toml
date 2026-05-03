@@ -1,0 +1,23 @@
+[theme]
+slug = "lsd"
+name = "Slatewave for LSD"
+category = "terminal"
+detect_command = "lsd --version"
+
+[install]
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/lsd-slatewave/main/colors.yaml"
+dest = "$HOME/.config/lsd/colors.yaml"
+instructions = [
+  "Open or create ~/.config/lsd/config.yaml and set:",
+  "    color:",
+  "      when: auto",
+  "      theme: custom",
+  "(YAML two-key edit isn't automated yet — landing in v0.0.3.)",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -f $HOME/.config/lsd/colors.yaml"

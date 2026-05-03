@@ -1,0 +1,22 @@
+[theme]
+slug = "tmux"
+name = "Slatewave for tmux"
+category = "terminal"
+detect_command = "tmux -V"
+
+[install]
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/tmux-slatewave.git"
+clone_dest = "$HOME/.config/tmux/slatewave"
+
+[activate]
+# Append a `source-file` line to ~/.tmux.conf so tmux loads the theme
+# on next session. Idempotent via the shell-rc activator's existing-line
+# detection.
+type = "shell-rc"
+files = ["~/.tmux.conf"]
+line = "source-file ~/.config/tmux/slatewave/slatewave.tmux.conf"
+
+[verify]
+command = "grep slatewave ~/.tmux.conf"
+expect = "slatewave"
