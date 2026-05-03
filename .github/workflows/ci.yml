@@ -1,7 +1,8 @@
 name: ci
 
 # Runs on every push to main and on every PR.
-# Two jobs: `test` (gofmt + vet + race-tests) and `lint` (golangci-lint).
+# Two jobs: `test` (gofmt + vet + race-tests, matrixed across linux + macos)
+# and `lint` (golangci-lint, linux-only — findings don't vary by OS).
 # They run in parallel — a slow lint job doesn't block the test signal.
 
 on:
@@ -14,8 +15,12 @@ permissions:
 
 jobs:
   test:
-    name: test
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,6 +32,9 @@ jobs:
           cache: true
 
       - name: Verify go.mod / go.sum are tidy
+        # Linux-only — go mod tidy results are platform-independent and
+        # diff-comparing on macos would just be a redundant signal.
+        if: matrix.os == 'ubuntu-latest'
         run: |
           go mod verify
           go mod tidy
@@ -36,6 +44,7 @@ jobs:
           fi
 
       - name: gofmt
+        if: matrix.os == 'ubuntu-latest'
         run: |
           fmt_out=$(gofmt -l .)
           if [ -n "$fmt_out" ]; then
@@ -68,9 +77,8 @@ jobs:
         # a newer Go than v1.x and can analyze projects targeting newer
         # Go directives. v1's binary (built with go1.24) used to bail
         # with "language version lower than targeted version" on this
-        # repo's `go 1.24.2` directive.
+        # repo's `go 1.24.2` directive. Repo's .golangci.yml controls
+        # the errcheck exclude list (fmt.Fprint* in stdout-style writers).
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
-          # No .golangci.yml yet — defaults are sane for the current
-          # codebase. Add a config to ratchet rules later.
