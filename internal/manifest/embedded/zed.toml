@@ -2,7 +2,7 @@
 slug = "zed"
 name = "Slatewave for Zed"
 category = "editor"
-detect_command = "test -d /Applications/Zed.app"
+detect_command = "command -v zed || test -d /Applications/Zed.app || flatpak list 2>/dev/null | grep -q dev.zed.Zed"
 
 [install]
 # Until Slatewave lands in the Zed extensions registry, install via
