@@ -2,7 +2,11 @@
 slug = "alacritty"
 name = "Slatewave for Alacritty"
 category = "terminal"
-detect_command = "alacritty --version"
+# `alacritty --version` works on Linux and on macOS when the user has
+# symlinked the in-bundle binary to /usr/local/bin (or similar). On a
+# stock macOS install where Alacritty was dragged to /Applications,
+# the CLI isn't on $PATH so fall through to checking the app bundle.
+detect_command = "command -v alacritty || test -d /Applications/Alacritty.app"
 
 [install]
 # Default to the full bundle (palette + Hack Nerd Font Mono, block cursor,
