@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,7 +12,13 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/installer"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/tui"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
+)
+
+var (
+	doctorFix    bool
+	doctorDryRun bool
 )
 
 // doctor walks every state record and classifies it. Read-only: no
@@ -46,9 +53,11 @@ var doctorCmd = &cobra.Command{
   ⚠ missing-tool  — underlying tool no longer detected
   ✗ orphan        — state record but no matching manifest
 
-Doctor is read-only — it doesn't touch state, install, or uninstall.
-Run the suggested remedy command to fix each issue, or run ` + "`slatewave list`" + `
-to silently reconcile stale + orphan records.`,
+By default doctor is read-only — it doesn't touch state, install, or uninstall.
+Pass --fix to launch an interactive remediation flow: pick which drift rows
+to fix and the dashboard runs the matching remedy (update for stale, uninstall
+for missing-tool, drop for orphan). Without --fix, copy a suggested remedy from
+the report or run ` + "`slatewave list`" + ` to silently reconcile stale + orphan records.`,
 	Args: cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		s, err := state.Load()
@@ -82,12 +91,68 @@ to silently reconcile stale + orphan records.`,
 
 		fmt.Fprintln(ui.W)
 		fmt.Fprintln(ui.W, doctorSummary(healthy, stale, missing, orphan))
+
+		if doctorFix {
+			fmt.Fprintln(ui.W)
+			return runDoctorFix(rows)
+		}
 		return nil
 	},
 }
 
 func init() {
+	doctorCmd.Flags().BoolVar(&doctorFix, "fix", false, "Interactively remediate stale, missing-tool, and orphan rows")
+	doctorCmd.Flags().BoolVar(&doctorDryRun, "dry-run", false, "With --fix, show the dashboard without writing")
 	rootCmd.AddCommand(doctorCmd)
+}
+
+// runDoctorFix maps fixable doctor rows to tui.Fix entries, hands them to the picker so the user can confirm or deselect, then runs the dashboard. Healthy rows are filtered out before the picker — there's nothing to fix.
+func runDoctorFix(rows []doctorRow) error {
+	fixes := buildFixes(rows)
+	if len(fixes) == 0 {
+		ui.Done("Nothing to fix.")
+		return nil
+	}
+
+	selected, err := tui.PickFixes(fixes)
+	if err != nil {
+		if errors.Is(err, tui.ErrAborted) {
+			ui.MutedLn("Aborted. Nothing changed.")
+			return nil
+		}
+		return err
+	}
+	if len(selected) == 0 {
+		ui.MutedLn("No fixes selected. Nothing changed.")
+		return nil
+	}
+
+	fmt.Fprintln(ui.W)
+	return tui.RunFix(selected, tui.FixOptions{DryRun: doctorDryRun})
+}
+
+// buildFixes converts diagnose() rows into tui.Fix entries. Healthy rows are dropped. For stale and missing-tool rows we re-load the manifest so the fix pipeline has it (avoids a second LoadOne in the dashboard); orphan rows ship without a manifest since that's the diagnosis.
+func buildFixes(rows []doctorRow) []tui.Fix {
+	var out []tui.Fix
+	for _, r := range rows {
+		switch r.status {
+		case statusStale:
+			th, err := manifest.LoadOne(r.slug)
+			if err != nil {
+				continue
+			}
+			out = append(out, tui.Fix{Slug: r.slug, Name: r.name, Kind: tui.FixUpdate, Theme: th})
+		case statusMissingTool:
+			th, err := manifest.LoadOne(r.slug)
+			if err != nil {
+				continue
+			}
+			out = append(out, tui.Fix{Slug: r.slug, Name: r.name, Kind: tui.FixUninstall, Theme: th})
+		case statusOrphan:
+			out = append(out, tui.Fix{Slug: r.slug, Name: r.name, Kind: tui.FixDropOrphan})
+		}
+	}
+	return out
 }
 
 func diagnose(s *state.Store) []doctorRow {
