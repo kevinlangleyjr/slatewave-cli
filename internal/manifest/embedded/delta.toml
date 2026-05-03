@@ -1,0 +1,18 @@
+[theme]
+slug = "delta"
+name = "Slatewave for delta"
+category = "terminal"
+detect_command = "delta --version"
+
+[install]
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/delta-slatewave.git"
+clone_dest = "$HOME/.config/delta-slatewave"
+
+[activate]
+type = "gitconfig-include"
+include_path = "$HOME/.config/delta-slatewave/slatewave.gitconfig"
+
+[verify]
+command = "git config --global --get-all include.path"
+expect = "delta-slatewave/slatewave.gitconfig"

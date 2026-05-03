@@ -1,0 +1,23 @@
+[theme]
+slug = "bat"
+name = "Slatewave for bat"
+category = "terminal"
+detect_command = "bat --version"
+
+[install]
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/bat-slatewave/main/Slatewave.tmTheme"
+dest = "$HOME/.config/bat/themes/Slatewave.tmTheme"
+
+[install.post]
+description = "Rebuilding bat theme cache"
+command = "bat cache --build"
+
+[activate]
+type = "shell-rc"
+files = ["~/.zshrc", "~/.bashrc", "~/.config/fish/config.fish"]
+line = "export BAT_THEME=Slatewave"
+
+[verify]
+command = "bat --list-themes"
+expect = "Slatewave"

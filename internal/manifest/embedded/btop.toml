@@ -1,0 +1,20 @@
+[theme]
+slug = "btop"
+name = "Slatewave for btop"
+category = "terminal"
+detect_command = "btop --version"
+
+[install]
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/btop-slatewave/main/slatewave.theme"
+dest = "$HOME/.config/btop/themes/slatewave.theme"
+
+[activate]
+type = "ini-key"
+file = "$HOME/.config/btop/btop.conf"
+key = "color_theme"
+value = "slatewave"
+
+[verify]
+command = "grep '^color_theme' ~/.config/btop/btop.conf"
+expect = "slatewave"
