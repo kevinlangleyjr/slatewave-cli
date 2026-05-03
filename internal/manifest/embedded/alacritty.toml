@@ -5,14 +5,18 @@ category = "terminal"
 detect_command = "alacritty --version"
 
 [install]
+# Default to the full bundle (palette + Hack Nerd Font Mono, block cursor,
+# opaque window) since it's the more complete out-of-the-box look. Users
+# who only want the palette can curl slatewave.toml manually — see the
+# theme page on getslatewave.com for that variant.
 type = "curl"
-url = "https://raw.githubusercontent.com/kevinlangleyjr/alacritty-slatewave/main/slatewave.toml"
-dest = "$HOME/.config/alacritty/themes/slatewave.toml"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/alacritty-slatewave/main/slatewave-full.toml"
+dest = "$HOME/.config/alacritty/themes/slatewave-full.toml"
 
 [activate]
 type = "toml-import"
 toml_path = "$HOME/.config/alacritty/alacritty.toml"
-import = "~/.config/alacritty/themes/slatewave.toml"
+import = "~/.config/alacritty/themes/slatewave-full.toml"
 
 [verify]
 command = "grep -c slatewave ~/.config/alacritty/alacritty.toml"
