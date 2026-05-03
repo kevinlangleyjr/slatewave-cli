@@ -11,13 +11,15 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/installer"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/tui"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
 var (
-	updateDryRun   bool
-	updateAll      bool
-	updateCategory string
+	updateDryRun      bool
+	updateAll         bool
+	updateCategory    string
+	updateInteractive bool
 )
 
 var updateCmd = &cobra.Command{
@@ -50,6 +52,10 @@ with a one-line hint and continue.`,
 			return fmt.Errorf("specify a theme name, --all, or --category=<name>")
 		}
 
+		if updateInteractive {
+			return updateInteractiveTUI(args, bulk)
+		}
+
 		if !bulk {
 			return updateOne(args[0], false)
 		}
@@ -61,7 +67,69 @@ func init() {
 	updateCmd.Flags().BoolVar(&updateDryRun, "dry-run", false, "Print what would happen without re-fetching")
 	updateCmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed theme")
 	updateCmd.Flags().StringVar(&updateCategory, "category", "", "Update every installed theme in this category")
+	updateCmd.Flags().BoolVar(&updateInteractive, "interactive", false, "Show a live progress dashboard instead of streamed step output")
 	_ = updateCmd.RegisterFlagCompletionFunc("category", validCategories)
+}
+
+// updateInteractiveTUI runs the update pipeline through the bubbletea dashboard. Loads each requested slug's manifest, drops marketplace + manual themes (no automated update path — would just clutter the dashboard with "failed: no automated update" rows), and hands the rest to tui.RunFix with FixUpdate. Reuses the fix dashboard since the pipeline is identical (refresh assets + post-hook + bump InstalledAt).
+func updateInteractiveTUI(args []string, bulk bool) error {
+	s, err := state.Load()
+	if err != nil {
+		return fmt.Errorf("load state: %w", err)
+	}
+
+	var slugs []string
+	switch {
+	case bulk:
+		for _, slug := range s.AllSlugs() {
+			if updateCategory != "" {
+				th, err := manifest.LoadOne(slug)
+				if err != nil || th.Theme.Category != updateCategory {
+					continue
+				}
+			}
+			slugs = append(slugs, slug)
+		}
+	default:
+		if _, ok := s.Get(args[0]); !ok {
+			return fmt.Errorf("%s is not installed (run `slatewave install %s` first)", args[0], args[0])
+		}
+		slugs = []string{args[0]}
+	}
+
+	var fixes []tui.Fix
+	var skipped []string
+	for _, slug := range slugs {
+		t, err := manifest.LoadOne(slug)
+		if err != nil {
+			ui.Errorf("%s: no manifest — skipping", slug)
+			continue
+		}
+		if t.Install.Type == "marketplace" || t.Install.Type == "manual" {
+			skipped = append(skipped, slug)
+			continue
+		}
+		fixes = append(fixes, tui.Fix{
+			Slug:  slug,
+			Name:  t.Theme.Name,
+			Kind:  tui.FixUpdate,
+			Theme: t,
+		})
+	}
+
+	for _, slug := range skipped {
+		ui.MutedLn(fmt.Sprintf("Skipping %s — install type has no automated update.", slug))
+	}
+	if len(skipped) > 0 {
+		fmt.Fprintln(ui.W)
+	}
+
+	if len(fixes) == 0 {
+		ui.Done("Nothing to update.")
+		return nil
+	}
+
+	return tui.RunFix(fixes, tui.FixOptions{DryRun: updateDryRun, Title: "Updating"})
 }
 
 // updateBulk iterates every installed slug, optionally filtered by
