@@ -16,6 +16,13 @@ import (
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List every Slatewave theme and what's installed",
+	Long: `Show every theme in the Slatewave family, grouped by category, with
+` + "`●`" + ` for installed and ` + "`○`" + ` for not. Footer shows the install count.
+
+Before rendering, list silently re-runs each installed theme's verify
+command. If a theme was uninstalled outside the CLI (e.g. ` + "`code --uninstall-extension`" + `
+from VSCode's UI) the stale state record is dropped and the row renders
+as not-installed. To audit drift without mutating state, use ` + "`slatewave doctor`" + `.`,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		themes, err := manifest.LoadAll()
 		if err != nil {
