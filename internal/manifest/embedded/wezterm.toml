@@ -15,7 +15,22 @@ dest = "$HOME/.config/wezterm/colors/slatewave.toml"
 [activate]
 type = "shell-rc"
 files = ["~/.config/wezterm/wezterm.lua"]
-line = 'config.color_scheme = "Slatewave"'
+line = "config.color_scheme = 'Slatewave'"
+# `return config` halts Lua, so anything appended below it is dead code.
+# Splice the activation line above that statement instead of at EOF.
+insert_before = "return config"
+# When wezterm.lua is missing or empty, append-only would leave a file
+# with just `config.color_scheme = 'Slatewave'` — invalid Lua because
+# `config` is undefined. Scaffold writes the full wrapper from the
+# wezterm-slatewave repo's README so the fresh install actually loads.
+scaffold = """
+local wezterm = require 'wezterm'
+local config  = wezterm.config_builder()
+
+config.color_scheme = 'Slatewave'
+
+return config
+"""
 
 [verify]
 command = "test -f ~/.config/wezterm/colors/slatewave.toml"

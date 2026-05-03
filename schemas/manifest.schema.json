@@ -136,6 +136,14 @@
           "type": "string",
           "description": "Line to append (shell-rc)."
         },
+        "scaffold": {
+          "type": "string",
+          "description": "Full file contents written when the chosen target is missing or whitespace-only (shell-rc). For configs where appending one line to an empty file produces invalid syntax (e.g. wezterm.lua: `config.color_scheme = ...` requires `local config = wezterm.config_builder()` first). Should already include the activation line — `line` is only re-appended when the file already had real content."
+        },
+        "insert_before": {
+          "type": "string",
+          "description": "Substring matched against trimmed line content (shell-rc). When set on a non-empty file, `line` is spliced just above the first matching line instead of being appended at EOF. Use for configs where the appended line would be unreachable — e.g. wezterm.lua's `return config` halts execution. Falls back to append when the anchor isn't found."
+        },
         "toml_path": {
           "type": "string",
           "description": "TOML file to add an import entry to (toml-import). Supports ~ and $ENV expansion."

@@ -102,6 +102,22 @@ type Activate struct {
 	// shell-rc fields
 	Files []string `toml:"files"` // candidate rc files (CLI picks the user's)
 	Line  string   `toml:"line"`
+	// Scaffold is written verbatim as the full file contents when the
+	// chosen target is missing or empty (whitespace-only). For configs
+	// like wezterm.lua where appending a single line to an empty file
+	// produces invalid syntax — `config.color_scheme = "Slatewave"` needs
+	// `local config = wezterm.config_builder()` to be defined first.
+	// Scaffold should already include the activation line, since the line
+	// is only re-appended when the file already had real content.
+	Scaffold string `toml:"scaffold"`
+	// InsertBefore picks where to splice Line into a file that already
+	// has real content. Matched as a substring against each trimmed line;
+	// the activation line goes immediately above the first hit. Used for
+	// configs where "append to end of file" is wrong because control flow
+	// would never reach the appended line — e.g. wezterm.lua's `return
+	// config` stops Lua from seeing anything below it. Falls back to the
+	// append-with-marker behavior when the anchor isn't found.
+	InsertBefore string `toml:"insert_before"`
 
 	// toml-import fields
 	TOMLPath string `toml:"toml_path"` // e.g. ~/.config/alacritty/alacritty.toml
