@@ -280,6 +280,358 @@ func TestStatusOne_UnknownSlugErrors(t *testing.T) {
 	}
 }
 
+// ----- installOne / installBulk -----
+
+// installOne with a manual+none manifest persists a state.Record. We use
+// `manual` to avoid network/binary dependencies in tests — the install
+// pipeline is a no-op so we exercise the wiring without side-effects.
+func TestInstallOne_PersistsRecordOnSuccess(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+
+	if err := installOne("okayish", false); err != nil {
+		t.Fatalf("installOne: %v", err)
+	}
+
+	s, err := state.Load()
+	if err != nil {
+		t.Fatalf("state.Load: %v", err)
+	}
+	rec, ok := s.Get("okayish")
+	if !ok {
+		t.Fatal("install didn't persist a record")
+	}
+	if rec.InstallType != "manual" {
+		t.Errorf("rec.InstallType = %q, want manual", rec.InstallType)
+	}
+	out := env.out.String()
+	if !strings.Contains(out, "Done.") {
+		t.Errorf("output missing `Done.` marker: %q", out)
+	}
+}
+
+func TestInstallOne_SuppressFinalSkipsDoneLine(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+
+	if err := installOne("okayish", true); err != nil {
+		t.Fatalf("installOne suppressFinal: %v", err)
+	}
+	if strings.Contains(env.out.String(), "Done.") {
+		t.Errorf("suppressFinal=true leaked the `Done.` line: %q", env.out.String())
+	}
+}
+
+func TestInstallOne_DryRunSkipsState(t *testing.T) {
+	prev := installDryRun
+	installDryRun = true
+	defer func() { installDryRun = prev }()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+
+	if err := installOne("okayish", false); err != nil {
+		t.Fatalf("installOne dry-run: %v", err)
+	}
+	s, _ := state.Load()
+	if _, ok := s.Get("okayish"); ok {
+		t.Error("dry-run install wrote a state record — should be a no-op")
+	}
+	if !strings.Contains(env.out.String(), "Dry run") {
+		t.Errorf("dry-run output missing `Dry run` marker: %q", env.out.String())
+	}
+}
+
+func TestInstallOne_UnknownSlugReturnsNoManifestError(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{})
+
+	err := installOne("ghost", false)
+	if err == nil {
+		t.Fatal("installOne for missing slug returned nil err")
+	}
+	if !strings.Contains(err.Error(), "no manifest") {
+		t.Errorf("err = %v, want `no manifest`", err)
+	}
+}
+
+// installBulk skips slugs already in state (re-running --all after a
+// theme is added is a common workflow) and emits a summary line at the end.
+func TestInstallBulk_SkipsAlreadyInstalledAndCounts(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{
+		"okayish": manifestHealthy,
+		"second":  strings.Replace(manifestHealthy, "okayish", "second", 1),
+	})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+
+	if err := installBulk([]string{"okayish", "second"}); err != nil {
+		t.Fatalf("installBulk: %v", err)
+	}
+
+	out := env.out.String()
+	if !strings.Contains(out, "Skipping okayish") {
+		t.Errorf("expected skip line for already-installed slug: %q", out)
+	}
+	if !strings.Contains(out, "1 installed, 1 skipped.") {
+		t.Errorf("expected `1 installed, 1 skipped.` summary: %q", out)
+	}
+}
+
+func TestInstallBulk_AllAlreadyInstalledReportsNothingToInstall(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+
+	if err := installBulk([]string{"okayish"}); err != nil {
+		t.Fatalf("installBulk: %v", err)
+	}
+	if !strings.Contains(env.out.String(), "Nothing to install") {
+		t.Errorf("expected `Nothing to install` summary: %q", env.out.String())
+	}
+}
+
+// ----- uninstallOne / uninstallBulk -----
+
+// uninstallOne with a manual install record cleanly reverses (no created
+// paths, no appended line) and removes the record from state.
+func TestUninstallOne_RemovesRecord(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+
+	if err := uninstallOne("okayish"); err != nil {
+		t.Fatalf("uninstallOne: %v", err)
+	}
+	s, _ := state.Load()
+	if _, ok := s.Get("okayish"); ok {
+		t.Error("uninstall didn't remove the record from state")
+	}
+	if !strings.Contains(env.out.String(), "Reverted.") {
+		t.Errorf("expected `Reverted.` in output: %q", env.out.String())
+	}
+}
+
+func TestUninstallOne_DryRunKeepsRecord(t *testing.T) {
+	prev := uninstallDryRun
+	uninstallDryRun = true
+	defer func() { uninstallDryRun = prev }()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+
+	if err := uninstallOne("okayish"); err != nil {
+		t.Fatalf("uninstallOne dry-run: %v", err)
+	}
+	s, _ := state.Load()
+	if _, ok := s.Get("okayish"); !ok {
+		t.Error("dry-run uninstall removed the record — should be a no-op")
+	}
+	if !strings.Contains(env.out.String(), "Dry run") {
+		t.Errorf("dry-run output missing `Dry run` marker: %q", env.out.String())
+	}
+}
+
+func TestUninstallOne_NotInstalledErrors(t *testing.T) {
+	setupCmdEnv(t)
+	err := uninstallOne("ghost")
+	if err == nil || !strings.Contains(err.Error(), "is not installed") {
+		t.Errorf("uninstallOne(ghost): err = %v, want `is not installed`", err)
+	}
+}
+
+func TestUninstallOne_MissingManifestErrors(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{})
+	env.putRecord(t, state.Record{Slug: "ghost", InstallType: "manual"})
+
+	err := uninstallOne("ghost")
+	if err == nil || !strings.Contains(err.Error(), "no manifest") {
+		t.Errorf("uninstallOne with missing manifest: err = %v, want `no manifest`", err)
+	}
+}
+
+func TestUninstallBulk_NothingInstalled(t *testing.T) {
+	prev := uninstallCategory
+	uninstallCategory = ""
+	defer func() { uninstallCategory = prev }()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{})
+
+	if err := uninstallBulk(); err != nil {
+		t.Fatalf("uninstallBulk: %v", err)
+	}
+	if !strings.Contains(env.out.String(), "Nothing to uninstall") {
+		t.Errorf("expected `Nothing to uninstall` for empty state: %q", env.out.String())
+	}
+}
+
+func TestUninstallBulk_CategoryFilterMissesAllInstalled(t *testing.T) {
+	prev := uninstallCategory
+	uninstallCategory = "terminal" // okayish is editor in manifestHealthy
+	defer func() { uninstallCategory = prev }()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+
+	err := uninstallBulk()
+	if err == nil || !strings.Contains(err.Error(), `no installed themes in category "terminal"`) {
+		t.Errorf("category filter with no matches: err = %v, want `no installed themes in category`", err)
+	}
+}
+
+func TestUninstallBulk_RemovesAllRecords(t *testing.T) {
+	prev := uninstallCategory
+	uninstallCategory = ""
+	defer func() { uninstallCategory = prev }()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{
+		"okayish": manifestHealthy,
+		"second":  strings.Replace(manifestHealthy, "okayish", "second", 1),
+	})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+	env.putRecord(t, state.Record{Slug: "second", InstallType: "manual"})
+
+	if err := uninstallBulk(); err != nil {
+		t.Fatalf("uninstallBulk: %v", err)
+	}
+	s, _ := state.Load()
+	if len(s.Records) != 0 {
+		t.Errorf("expected empty state after bulk uninstall, got %v", s.Records)
+	}
+	if !strings.Contains(env.out.String(), "2 uninstalled.") {
+		t.Errorf("expected `2 uninstalled.` summary: %q", env.out.String())
+	}
+}
+
+// ----- updateOne / updateBulk -----
+
+// `manual` install type has no automated update — updater.Update returns
+// ErrNoAutomatedUpdate, which updateOne propagates after printing a hint.
+func TestUpdateOne_ManualReturnsNoAutomatedUpdate(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+
+	err := updateOne("okayish", false)
+	if err == nil {
+		t.Fatal("updateOne for manual install returned nil err")
+	}
+	if !strings.Contains(env.out.String(), "No automated update for install type") {
+		t.Errorf("expected hint about no automated update: %q", env.out.String())
+	}
+}
+
+func TestUpdateOne_NotInstalledErrors(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+
+	err := updateOne("okayish", false)
+	if err == nil || !strings.Contains(err.Error(), "is not installed") {
+		t.Errorf("updateOne for not-installed slug: err = %v, want `is not installed`", err)
+	}
+}
+
+func TestUpdateOne_UnknownSlugErrors(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{})
+
+	err := updateOne("ghost", false)
+	if err == nil || !strings.Contains(err.Error(), "no manifest") {
+		t.Errorf("updateOne for unknown slug: err = %v, want `no manifest`", err)
+	}
+}
+
+// updateBulk treats ErrNoAutomatedUpdate as a "skipped" — the run keeps
+// going and the summary shows no failures.
+func TestUpdateBulk_ManualThemeIsSkippedNotFailed(t *testing.T) {
+	prev := updateCategory
+	updateCategory = ""
+	defer func() { updateCategory = prev }()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+
+	if err := updateBulk(); err != nil {
+		t.Fatalf("updateBulk: %v", err)
+	}
+	if !strings.Contains(env.out.String(), "0 updated, 1 skipped.") {
+		t.Errorf("expected `0 updated, 1 skipped.` summary: %q", env.out.String())
+	}
+}
+
+func TestUpdateBulk_NothingInstalled(t *testing.T) {
+	prev := updateCategory
+	updateCategory = ""
+	defer func() { updateCategory = prev }()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{})
+
+	if err := updateBulk(); err != nil {
+		t.Fatalf("updateBulk: %v", err)
+	}
+	if !strings.Contains(env.out.String(), "Nothing to update") {
+		t.Errorf("expected `Nothing to update` for empty state: %q", env.out.String())
+	}
+}
+
+func TestUpdateBulk_CategoryFilterMatchesNothing(t *testing.T) {
+	prev := updateCategory
+	updateCategory = "terminal" // okayish is editor
+	defer func() { updateCategory = prev }()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+
+	err := updateBulk()
+	if err == nil || !strings.Contains(err.Error(), `no installed themes in category "terminal"`) {
+		t.Errorf("category filter with no matches: err = %v, want `no installed themes in category`", err)
+	}
+}
+
+// ----- statusAll -----
+
+func TestStatusAll_EmptyStatePrintsHint(t *testing.T) {
+	env := setupCmdEnv(t)
+
+	s, _ := state.Load()
+	if err := statusAll(s); err != nil {
+		t.Fatalf("statusAll: %v", err)
+	}
+	if !strings.Contains(env.out.String(), "Nothing installed yet") {
+		t.Errorf("expected `Nothing installed yet` for empty state: %q", env.out.String())
+	}
+}
+
+func TestStatusAll_PrintsEveryInstalledSlug(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{
+		"okayish": manifestHealthy,
+		"drifted": manifestVerifyFails,
+	})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+	env.putRecord(t, state.Record{Slug: "drifted", InstallType: "manual"})
+
+	s, _ := state.Load()
+	if err := statusAll(s); err != nil {
+		t.Fatalf("statusAll: %v", err)
+	}
+	out := env.out.String()
+	// Both manifests are loaded so each record gets its theme name printed.
+	for _, want := range []string{"OK", "Drifted"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("statusAll output missing %q: %q", want, out)
+		}
+	}
+}
+
 // ----- renderRow + renderDoctorRow (smoke) -----
 
 func TestRenderRow_NotInstalledShowsCircle(t *testing.T) {

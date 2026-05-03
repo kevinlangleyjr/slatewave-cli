@@ -50,7 +50,11 @@ func Uninstall(rec state.Record, t manifest.Theme, opts Options) error {
 				}
 			}
 		} else {
-			if err := removeShellRCLine(rec.AppendedLine.File, rec.AppendedLine.Line, opts); err != nil {
+			marker := "# slatewave"
+			if t.Activate.CommentPrefix != "" {
+				marker = t.Activate.CommentPrefix + " slatewave"
+			}
+			if err := removeShellRCLine(rec.AppendedLine.File, rec.AppendedLine.Line, marker, opts); err != nil {
 				return err
 			}
 		}
@@ -92,7 +96,13 @@ func Uninstall(rec state.Record, t manifest.Theme, opts Options) error {
 
 // removeShellRCLine removes exactly one occurrence of `line` from
 // `file`. Idempotent — silently no-ops if the line isn't there.
-func removeShellRCLine(file, line string, opts Options) error {
+//
+// `marker` is the exact trimmed text of the comment we wrote above the
+// activation line at install time (e.g. "# slatewave" or "-- slatewave",
+// derived from the manifest's Activate.CommentPrefix). It's stripped
+// when adjacent to the target — but only when adjacent, so unrelated
+// comments matching the same style are preserved.
+func removeShellRCLine(file, line, marker string, opts Options) error {
 	data, err := os.ReadFile(file)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -105,9 +115,7 @@ func removeShellRCLine(file, line string, opts Options) error {
 	skipNext := false
 	dropped := false
 	for _, l := range strings.Split(string(data), "\n") {
-		// Also drop the "# slatewave" marker comment that precedes
-		// our appended line, if it's right above.
-		if !dropped && strings.TrimSpace(l) == "# slatewave" {
+		if !dropped && strings.TrimSpace(l) == marker {
 			skipNext = true
 			continue
 		}
@@ -117,9 +125,10 @@ func removeShellRCLine(file, line string, opts Options) error {
 			continue
 		}
 		if skipNext {
-			// the line right after "# slatewave" wasn't ours —
-			// re-insert the marker we just skipped
-			out = append(out, "# slatewave")
+			// the line right after the marker wasn't ours — re-insert
+			// the marker we just skipped so the user's own annotation
+			// survives.
+			out = append(out, marker)
 			skipNext = false
 		}
 		out = append(out, l)
