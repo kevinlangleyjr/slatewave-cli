@@ -64,8 +64,13 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        # v8 of the action runs golangci-lint v2.x, which is built with
+        # a newer Go than v1.x and can analyze projects targeting newer
+        # Go directives. v1's binary (built with go1.24) used to bail
+        # with "language version lower than targeted version" on this
+        # repo's `go 1.24.2` directive.
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
-          # No .golangci.yml yet — defaults are sane for v0.0.1.
-          # Add a config to ratchet rules in v0.0.2+.
+          # No .golangci.yml yet — defaults are sane for the current
+          # codebase. Add a config to ratchet rules later.
