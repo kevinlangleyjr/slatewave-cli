@@ -132,18 +132,19 @@ func TestStore_PutGetRemove(t *testing.T) {
 
 func TestStore_AllSlugs(t *testing.T) {
 	s := &Store{Records: map[string]Record{}}
+	// Insert in deliberately-shuffled order so the sort has work to do.
+	s.Put(Record{Slug: "delta"})
 	s.Put(Record{Slug: "bat"})
 	s.Put(Record{Slug: "btop"})
-	s.Put(Record{Slug: "delta"})
 
 	got := s.AllSlugs()
-	if len(got) != 3 {
-		t.Fatalf("AllSlugs len = %d, want 3", len(got))
+	want := []string{"bat", "btop", "delta"}
+	if len(got) != len(want) {
+		t.Fatalf("AllSlugs len = %d, want %d", len(got), len(want))
 	}
-	want := map[string]bool{"bat": true, "btop": true, "delta": true}
-	for _, slug := range got {
-		if !want[slug] {
-			t.Errorf("AllSlugs returned unexpected slug %q", slug)
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("AllSlugs[%d] = %q, want %q (must be sorted ascending)", i, got[i], w)
 		}
 	}
 }
