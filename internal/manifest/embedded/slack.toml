@@ -1,0 +1,21 @@
+[theme]
+slug = "slack"
+name = "Slatewave for Slack"
+category = "chat"
+detect_command = "test -d /Applications/Slack.app"
+
+[install]
+# Slack's only theme-import affordance is a pasted comma-separated hex
+# string. Print the string and the steps; user pastes into Preferences.
+type = "manual"
+instructions = [
+  "In Slack, open Preferences → Themes",
+  "Set the base appearance to Dark",
+  "Scroll to Colors → Create a custom theme",
+  "Paste this string as the custom theme:",
+  "    #1E293B,#282C34,#334155,#5EEAD4,#282C34,#E2E8F0,#5EEAD4,#FB7185",
+  "Slack applies immediately; close the dialog to keep it",
+]
+
+[activate]
+type = "none"
