@@ -1,0 +1,62 @@
+# goreleaser config — cross-compiles slatewave for darwin/linux on amd64/arm64,
+# archives the binaries with the README + LICENSE, and attaches everything to
+# the GitHub release that triggered the workflow.
+#
+# Run locally with `goreleaser release --snapshot --clean` to dry-run.
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: slatewave
+    main: .
+    binary: slatewave
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      # Strip symbol table and DWARF (smaller binary), and bake the
+      # release tag into cmd.Version so `slatewave --version` prints it.
+      - -s -w -X github.com/kevinlangleyjr/slatewave-cli/cmd.Version={{ .Version }}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: slatewave
+    formats: [tar.gz]
+    # e.g. slatewave_0.0.1_darwin_arm64.tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  # Used when running `--snapshot` locally without a tag.
+  version_template: '{{ incpatch .Version }}-next'
+
+release:
+  draft: false
+  prerelease: auto
+
+changelog:
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - 'Apply go fmt'
