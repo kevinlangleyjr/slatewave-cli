@@ -138,7 +138,35 @@ func installInteractiveTUI(slugs []string) error {
 		return nil
 	}
 
-	return tui.RunInstall(themes, tui.InstallOptions{DryRun: installDryRun})
+	runErr := tui.RunInstall(themes, tui.InstallOptions{DryRun: installDryRun})
+	// Print post-install instructions for every theme we tried, after the
+	// dashboard exits. Static-mode installOne prints these inline; TUI mode
+	// can't (multi-line guidance won't fit in a one-row dashboard) so we
+	// surface them as a "Next steps:" block once the live render is done.
+	// We print even when runErr != nil — the dashboard already shows which
+	// themes failed; instructions for failed ones are ignorable noise but
+	// instructions for the successes still need to land.
+	printPostInstallInstructions(themes)
+	return runErr
+}
+
+// printPostInstallInstructions emits each theme's install.instructions block under a "Next steps for <name>:" header. No-op for themes that ship no instructions, so the function is safe to call against a mixed list.
+func printPostInstallInstructions(themes []manifest.Theme) {
+	any := false
+	for _, t := range themes {
+		if len(t.Install.Instructions) == 0 {
+			continue
+		}
+		if !any {
+			fmt.Fprintln(ui.W)
+			any = true
+		}
+		ui.MutedLn(fmt.Sprintf("Next steps for %s:", t.Theme.Name))
+		for _, line := range t.Install.Instructions {
+			ui.MutedLn("  " + line)
+		}
+		fmt.Fprintln(ui.W)
+	}
 }
 
 // installBulk runs installOne for each slug, skipping themes already

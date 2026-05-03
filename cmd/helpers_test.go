@@ -214,6 +214,68 @@ func TestInstallSuffix(t *testing.T) {
 	}
 }
 
+// ----- printPostInstallInstructions (regression for browse → install
+// where TUI dashboards swallowed the instructions block) -----
+
+func TestPrintPostInstallInstructions_PrintsHeaderAndLines(t *testing.T) {
+	env := setupCmdEnv(t)
+	themes := []manifest.Theme{
+		{
+			Theme: manifest.Meta{Slug: "obsidian", Name: "Slatewave for Obsidian"},
+			Install: manifest.Install{
+				Instructions: []string{
+					"Copy the theme into your vault:",
+					"    cp -R ~/.local/share/obsidian-slatewave <vault>/.obsidian/themes/Slatewave",
+					"In Obsidian, Settings → Appearance → Themes → Slatewave",
+				},
+			},
+		},
+	}
+	printPostInstallInstructions(themes)
+	out := env.out.String()
+	if !strings.Contains(out, "Next steps for Slatewave for Obsidian") {
+		t.Errorf("missing per-theme header: %q", out)
+	}
+	for _, want := range []string{"Copy the theme into your vault:", "<vault>/.obsidian/themes/Slatewave", "Settings → Appearance"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("instructions output missing %q: %q", want, out)
+		}
+	}
+}
+
+func TestPrintPostInstallInstructions_NoOpWhenNoInstructions(t *testing.T) {
+	env := setupCmdEnv(t)
+	themes := []manifest.Theme{
+		{Theme: manifest.Meta{Slug: "bat", Name: "Slatewave for bat"}},
+	}
+	printPostInstallInstructions(themes)
+	if env.out.Len() != 0 {
+		t.Errorf("themes with no instructions should produce no output, got %q", env.out.String())
+	}
+}
+
+func TestPrintPostInstallInstructions_SkipsThemesWithoutInstructionsInMixedSet(t *testing.T) {
+	env := setupCmdEnv(t)
+	themes := []manifest.Theme{
+		{Theme: manifest.Meta{Slug: "bat", Name: "Slatewave for bat"}},
+		{
+			Theme: manifest.Meta{Slug: "obsidian", Name: "Slatewave for Obsidian"},
+			Install: manifest.Install{
+				Instructions: []string{"Open Obsidian and pick Slatewave"},
+			},
+		},
+		{Theme: manifest.Meta{Slug: "btop", Name: "Slatewave for btop"}},
+	}
+	printPostInstallInstructions(themes)
+	out := env.out.String()
+	if strings.Contains(out, "Slatewave for bat") || strings.Contains(out, "Slatewave for btop") {
+		t.Errorf("themes without instructions shouldn't appear in output: %q", out)
+	}
+	if !strings.Contains(out, "Slatewave for Obsidian") {
+		t.Errorf("theme with instructions should appear: %q", out)
+	}
+}
+
 // ----- fallback (cmd/status.go) -----
 
 func TestFallback(t *testing.T) {
