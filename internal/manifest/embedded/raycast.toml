@@ -5,17 +5,16 @@ category = "productivity"
 detect_command = "test -d /Applications/Raycast.app"
 
 [install]
-# Raycast's Theme Studio only accepts pasted JSON — no file-based
-# import. Clone the repo so the user has a local copy of the JSON,
-# then guide them through the GUI paste.
-type = "clone"
-repo = "https://github.com/kevinlangleyjr/raycast-slatewave.git"
-clone_dest = "$HOME/.local/share/raycast-slatewave"
+# Raycast themes install via a themes.ray.so share URL — visiting the
+# page renders an "Add to Raycast" button that deep-links the theme
+# into the app. There's nothing to download or paste.
+type = "manual"
 instructions = [
-  "Open Raycast and run: Theme Studio (or: Manage Themes → Create New Theme)",
-  "Choose Import Theme",
-  "Paste the contents of ~/.local/share/raycast-slatewave/slatewave.json",
-  "Set Slatewave as the active theme in Raycast Settings → Appearance",
+  "Open this URL in your browser:",
+  "  https://themes.ray.so?version=1&name=Slatewave&colors=%23282c34,%231e293b,%23e2e8f0,%235eead4,%235eead4,%23fb7185,%23ff4500,%23fbbf24,%235eead4,%2338bdf8,%23b388ff,%23f472b6&appearance=dark",
+  "Click 'Add to Raycast' on the page that loads",
+  "Confirm the import in Raycast — it will appear in your theme list",
+  "Set Slatewave as the active theme in Raycast Settings → Themes",
   "(Raycast Pro required — custom themes are gated behind it.)",
 ]
 
@@ -23,4 +22,8 @@ instructions = [
 type = "none"
 
 [verify]
-command = "test -d $HOME/.local/share/raycast-slatewave"
+# The install is a browser-driven Raycast deep-link — Raycast stores
+# the theme inside its own preferences package and we shouldn't poke
+# at that. trust_state tells doctor + list to reconcile against the
+# state record instead of re-running a verify command.
+trust_state = true
