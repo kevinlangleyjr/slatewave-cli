@@ -60,8 +60,9 @@ tidy: ## Tidy + verify go.mod / go.sum.
 check: fmt vet test ## Format, vet, and test — the gate before committing.
 
 .PHONY: smoke
-smoke: build ## Dry-run install for every embedded theme — exercises all install patterns.
-	@for slug in vscode bat btop delta oh-my-posh; do \
+smoke: build ## Dry-run install for every embedded theme — exercises every manifest.
+	@for f in internal/manifest/embedded/*.toml; do \
+		slug=$$(basename $$f .toml); \
 		./$(BINARY) install $$slug --dry-run; \
 		echo; \
 	done
