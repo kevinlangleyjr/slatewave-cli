@@ -204,17 +204,17 @@ func pickShellRC(candidates []string) (string, error) {
 //
 // The manifest declares:
 //
-//   [activate]
-//   type      = "toml-import"
-//   toml_path = "$HOME/.config/alacritty/alacritty.toml"
-//   import    = "~/.config/alacritty/themes/slatewave.toml"
+//	[activate]
+//	type      = "toml-import"
+//	toml_path = "$HOME/.config/alacritty/alacritty.toml"
+//	import    = "~/.config/alacritty/themes/slatewave.toml"
 //
 // We do a small, line-based edit rather than a full TOML parse-edit-
 // emit so user comments and ordering survive. Three cases:
 //
-//   1. import = [...] already contains our entry  → no-op (idempotent)
-//   2. import = [...] exists but doesn't contain us → add entry to that array
-//   3. no import array yet → append `import = ["<our entry>"]` at file end
+//  1. import = [...] already contains our entry  → no-op (idempotent)
+//  2. import = [...] exists but doesn't contain us → add entry to that array
+//  3. no import array yet → append `import = ["<our entry>"]` at file end
 //
 // Always backs the file up before rewriting so uninstall can restore.
 func doTOMLImport(t manifest.Theme, rec *state.Record, opts Options) error {

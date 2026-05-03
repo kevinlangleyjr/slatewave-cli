@@ -1,0 +1,20 @@
+[theme]
+slug = "helix"
+name = "Slatewave for Helix"
+category = "editor"
+detect_command = "hx --version"
+
+[install]
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/helix-slatewave/main/themes/slatewave.toml"
+dest = "$HOME/.config/helix/themes/slatewave.toml"
+
+[activate]
+type = "ini-key"
+file = "$HOME/.config/helix/config.toml"
+key = "theme"
+value = "slatewave"
+
+[verify]
+command = "grep '^theme' ~/.config/helix/config.toml"
+expect = "slatewave"
