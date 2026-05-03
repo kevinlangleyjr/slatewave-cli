@@ -2,15 +2,20 @@
 slug = "sublime-text"
 name = "Slatewave for Sublime Text"
 category = "editor"
-# macOS-only path today. Sublime on Linux installs to
-# ~/.config/sublime-text/Packages/, which would need a per-platform
-# clone_dest field on the manifest schema — not yet there.
-detect_command = "test -d $HOME/Library/Application\\ Support/Sublime\\ Text"
+# Sublime ships on macOS + Linux. Detect the macOS bundle path or the
+# Linux binary on PATH; both qualify as "Sublime is installed."
+detect_command = "test -d $HOME/Library/Application\\ Support/Sublime\\ Text || command -v subl"
 
 [install]
 type = "clone"
 repo = "https://github.com/kevinlangleyjr/sublime-text-slatewave.git"
+# Per-OS override: macOS uses the bundle Application Support dir,
+# Linux follows the XDG-style ~/.config/sublime-text/Packages/. The
+# bare clone_dest stays as the macOS path so older CLI builds (without
+# the per-OS picker) still work on the macOS-majority audience.
 clone_dest = "$HOME/Library/Application Support/Sublime Text/Packages/Slatewave"
+clone_dest_darwin = "$HOME/Library/Application Support/Sublime Text/Packages/Slatewave"
+clone_dest_linux = "$HOME/.config/sublime-text/Packages/Slatewave"
 
 [activate]
 # Sublime auto-loads anything under Packages/. The bundled command
@@ -19,4 +24,7 @@ clone_dest = "$HOME/Library/Application Support/Sublime Text/Packages/Slatewave"
 type = "none"
 
 [verify]
-command = "test -d $HOME/Library/Application\\ Support/Sublime\\ Text/Packages/Slatewave"
+# Match the OR pattern from detect_command: macOS bundle path or Linux
+# XDG path. Either passing means our package is installed somewhere
+# Sublime would auto-load it from.
+command = "test -d $HOME/Library/Application\\ Support/Sublime\\ Text/Packages/Slatewave || test -d $HOME/.config/sublime-text/Packages/Slatewave"

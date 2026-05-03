@@ -60,7 +60,19 @@
         },
         "clone_dest": {
           "type": "string",
-          "description": "Where to clone the repo (clone). Supports ~ and $ENV expansion."
+          "description": "Where to clone the repo (clone). Supports ~ and $ENV expansion. Used as fallback when no per-OS override matches."
+        },
+        "clone_dest_darwin": {
+          "type": "string",
+          "description": "macOS-specific clone destination. Takes precedence over clone_dest when running on darwin."
+        },
+        "clone_dest_linux": {
+          "type": "string",
+          "description": "Linux-specific clone destination. Takes precedence over clone_dest when running on linux."
+        },
+        "clone_dest_windows": {
+          "type": "string",
+          "description": "Windows-specific clone destination. Takes precedence over clone_dest when running on windows."
         },
         "identifier": {
           "type": "string",

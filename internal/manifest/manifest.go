@@ -49,7 +49,14 @@ type Install struct {
 
 	// clone-specific
 	Repo      string `toml:"repo"`       // git URL
-	CloneDest string `toml:"clone_dest"` // where to clone
+	CloneDest string `toml:"clone_dest"` // default destination (used when no per-OS override fits)
+	// Per-platform overrides — when set, take precedence over CloneDest
+	// on the matching runtime.GOOS. Lets one manifest target tools whose
+	// config dirs differ between macOS and Linux (sublime-text is the
+	// canonical case: ~/Library/... on macOS, ~/.config/... on Linux).
+	CloneDestDarwin  string `toml:"clone_dest_darwin"`
+	CloneDestLinux   string `toml:"clone_dest_linux"`
+	CloneDestWindows string `toml:"clone_dest_windows"`
 
 	// vscode-ext-specific
 	Identifier string `toml:"identifier"` // e.g. "kevinlangleyjr.slatewave"
