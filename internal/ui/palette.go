@@ -29,10 +29,10 @@ var (
 	Teal400 = lipgloss.Color("#2dd4bf")
 
 	// Accents
-	Sky300    = lipgloss.Color("#7dd3fc")
-	Sky400    = lipgloss.Color("#38bdf8")
-	Rose400   = lipgloss.Color("#fb7185")
-	Purple    = lipgloss.Color("#b388ff")
-	Amber400  = lipgloss.Color("#fbbf24")
-	Amber700  = lipgloss.Color("#b45309")
+	Sky300   = lipgloss.Color("#7dd3fc")
+	Sky400   = lipgloss.Color("#38bdf8")
+	Rose400  = lipgloss.Color("#fb7185")
+	Purple   = lipgloss.Color("#b388ff")
+	Amber400 = lipgloss.Color("#fbbf24")
+	Amber700 = lipgloss.Color("#b45309")
 )

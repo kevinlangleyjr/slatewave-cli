@@ -238,4 +238,3 @@ func TestUninstall_DryRunMakesNoChanges(t *testing.T) {
 		t.Errorf("dry-run uninstall removed the file: %v", err)
 	}
 }
-

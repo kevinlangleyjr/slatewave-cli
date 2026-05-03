@@ -26,9 +26,9 @@ type Record struct {
 	ActivateType string    `toml:"activate_type"`
 
 	// Reversal payload — populated as the install runs.
-	CreatedPaths []string  `toml:"created_paths,omitempty"`  // delete on uninstall
-	Backups      []Backup  `toml:"backups,omitempty"`        // restore on uninstall
-	AppendedLine *Appended `toml:"appended_line,omitempty"`  // remove on uninstall
+	CreatedPaths []string  `toml:"created_paths,omitempty"` // delete on uninstall
+	Backups      []Backup  `toml:"backups,omitempty"`       // restore on uninstall
+	AppendedLine *Appended `toml:"appended_line,omitempty"` // remove on uninstall
 }
 
 // Backup is a copy of a user config file made before the CLI edited

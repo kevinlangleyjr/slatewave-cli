@@ -18,7 +18,7 @@ func TestQuoteIfNeeded(t *testing.T) {
 		want string
 	}{
 		{`slatewave`, `"slatewave"`},
-		{`"slatewave"`, `"slatewave"`},                  // already quoted, leave alone
+		{`"slatewave"`, `"slatewave"`}, // already quoted, leave alone
 		{`with space`, `"with space"`},
 		{`"already quoted with space"`, `"already quoted with space"`},
 	}
