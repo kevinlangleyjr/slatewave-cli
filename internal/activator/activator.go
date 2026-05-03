@@ -426,10 +426,10 @@ func doYAMLSet(t manifest.Theme, rec *state.Record, opts Options) error {
 //     block at end-of-file with all of its requested children.
 //   - if it exists, infer its child-indent from the first existing child
 //     (default "  "). For each requested child:
-//       * exists at desired value → no-op
-//       * exists at different value → replace value
-//       * doesn't exist → insert after the parent's last existing child
-//         (or right after the parent line if it has none).
+//   - exists at desired value → no-op
+//   - exists at different value → replace value
+//   - doesn't exist → insert after the parent's last existing child
+//     (or right after the parent line if it has none).
 func yamlSetRewrite(content string, pairs []manifest.YAMLPair) (string, bool, error) {
 	type childKV struct{ child, value string }
 	byParent := map[string][]childKV{}
