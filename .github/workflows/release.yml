@@ -34,4 +34,13 @@ jobs:
           version: latest
           args: release --clean
         env:
+          # Default token — used to create the GitHub release on
+          # slatewave-cli itself. Auto-provisioned by Actions.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Cross-repo token — used to push the formula commit to
+          # kevinlangleyjr/homebrew-slatewave. Provision a classic PAT
+          # (or a fine-grained token scoped to the tap repo) and add
+          # it to slatewave-cli's repo secrets. Without this set, the
+          # release workflow still produces binaries but the brew tap
+          # update is skipped (goreleaser will warn loudly).
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
