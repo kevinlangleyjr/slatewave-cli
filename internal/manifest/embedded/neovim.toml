@@ -1,0 +1,27 @@
+[theme]
+slug = "neovim"
+name = "Slatewave for Neovim"
+category = "editor"
+detect_command = "nvim --version"
+
+[install]
+# Neovim users typically install via lazy.nvim (or packer / vim-plug).
+# Rather than try to detect the user's plugin manager, drop a ready-to-
+# use lazy.nvim plugin spec at ~/.config/nvim/lua/plugins/slatewave.lua
+# — lazy auto-imports anything under that directory, so the user just
+# restarts nvim once.
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/neovim-slatewave/main/extras/lazy-spec.lua"
+dest = "$HOME/.config/nvim/lua/plugins/slatewave.lua"
+instructions = [
+  "Restart Neovim — lazy.nvim auto-imports the spec, installs the plugin,",
+  "and the colorscheme is loaded by the spec's config callback.",
+  "If you use packer or vim-plug instead of lazy, see the install steps",
+  "at https://getslatewave.com/themes/neovim/",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -f $HOME/.config/nvim/lua/plugins/slatewave.lua"

@@ -1,0 +1,25 @@
+[theme]
+slug = "obsidian"
+name = "Slatewave for Obsidian"
+category = "notes"
+detect_command = "test -d /Applications/Obsidian.app"
+
+[install]
+# Obsidian themes live inside a vault's .obsidian/themes/ directory —
+# the CLI doesn't know which vault the user wants. Clone the repo to
+# a known scratch location and let the user copy/symlink it into the
+# right vault themselves.
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/obsidian-slatewave.git"
+clone_dest = "$HOME/.local/share/obsidian-slatewave"
+instructions = [
+  "Copy or symlink the theme into your vault:",
+  "    cp -R ~/.local/share/obsidian-slatewave <vault>/.obsidian/themes/Slatewave",
+  "In Obsidian, open Settings → Appearance → Themes → select Slatewave",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -d $HOME/.local/share/obsidian-slatewave"

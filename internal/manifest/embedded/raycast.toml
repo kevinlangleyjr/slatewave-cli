@@ -1,0 +1,26 @@
+[theme]
+slug = "raycast"
+name = "Slatewave for Raycast"
+category = "productivity"
+detect_command = "test -d /Applications/Raycast.app"
+
+[install]
+# Raycast's Theme Studio only accepts pasted JSON — no file-based
+# import. Clone the repo so the user has a local copy of the JSON,
+# then guide them through the GUI paste.
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/raycast-slatewave.git"
+clone_dest = "$HOME/.local/share/raycast-slatewave"
+instructions = [
+  "Open Raycast and run: Theme Studio (or: Manage Themes → Create New Theme)",
+  "Choose Import Theme",
+  "Paste the contents of ~/.local/share/raycast-slatewave/slatewave.json",
+  "Set Slatewave as the active theme in Raycast Settings → Appearance",
+  "(Raycast Pro required — custom themes are gated behind it.)",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -d $HOME/.local/share/raycast-slatewave"

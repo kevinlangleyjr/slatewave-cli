@@ -1,0 +1,21 @@
+[theme]
+slug = "windows-terminal"
+name = "Slatewave for Windows Terminal"
+category = "terminal"
+# Windows Terminal is Windows-only. On macOS / Linux this detect fails
+# and the install errors out cleanly with "windows-terminal not detected".
+detect_command = "command -v wt"
+
+[install]
+type = "manual"
+instructions = [
+  "Open Windows Terminal → ▾ dropdown → Settings → \"Open JSON file\"",
+  "Fetch the scheme JSON from:",
+  "    https://raw.githubusercontent.com/kevinlangleyjr/windows-terminal-slatewave/main/slatewave.json",
+  "Copy the schemes[0] object into your settings.json `schemes` array",
+  "Set \"colorScheme\": \"Slatewave\" under profiles.defaults",
+  "Save — Windows Terminal reloads live, no restart needed",
+]
+
+[activate]
+type = "none"

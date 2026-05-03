@@ -1,0 +1,20 @@
+[theme]
+slug = "jetbrains"
+name = "Slatewave for JetBrains"
+category = "editor"
+# JetBrains plugins install via the Marketplace inside any JetBrains
+# IDE. There's no headless CLI install path, so detection is "any
+# JetBrains IDE present in /Applications".
+detect_command = "ls /Applications | grep -E '(GoLand|IntelliJ|WebStorm|PyCharm|RubyMine|PhpStorm|CLion|RustRover|DataGrip|Rider|Android Studio)'"
+
+[install]
+type = "marketplace"
+url = "https://plugins.jetbrains.com/plugin/31459-slatewave"
+instructions = [
+  "Browser opens the Marketplace page",
+  "Click Install — your IDE will fetch and apply the plugin",
+  "Then Settings → Appearance & Behavior → Appearance → Theme → Slatewave",
+]
+
+[activate]
+type = "none"

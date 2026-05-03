@@ -1,0 +1,24 @@
+[theme]
+slug = "zed"
+name = "Slatewave for Zed"
+category = "editor"
+detect_command = "test -d /Applications/Zed.app"
+
+[install]
+# Until Slatewave lands in the Zed extensions registry, install via
+# the dev-extension flow: clone the repo and load it inside Zed.
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/zed-slatewave.git"
+clone_dest = "$HOME/.local/share/zed-slatewave"
+instructions = [
+  "Inside Zed, open the command palette (⌘⇧P / Ctrl+Shift+P)",
+  "Run: zed extensions install dev extension",
+  "Pick the cloned ~/.local/share/zed-slatewave directory",
+  "Activate via ⌘K ⌘T → Slatewave",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -d $HOME/.local/share/zed-slatewave"

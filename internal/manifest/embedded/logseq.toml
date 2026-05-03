@@ -1,0 +1,23 @@
+[theme]
+slug = "logseq"
+name = "Slatewave for Logseq"
+category = "notes"
+detect_command = "test -d /Applications/Logseq.app"
+
+[install]
+# Logseq Marketplace theme listing is pending — load as an unpacked
+# plugin via the Logseq UI in the meantime.
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/logseq-slatewave.git"
+clone_dest = "$HOME/.local/share/logseq-slatewave"
+instructions = [
+  "In Logseq, open ⋯ → Plugins → Load unpacked plugin",
+  "Pick the cloned ~/.local/share/logseq-slatewave directory",
+  "Open Settings → Themes → select Slatewave Dark",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -d $HOME/.local/share/logseq-slatewave"
