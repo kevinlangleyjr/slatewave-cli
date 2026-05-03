@@ -129,6 +129,8 @@ func activateLabel(t manifest.Theme) string {
 			return "Appending to " + t.Activate.Files[0]
 		}
 		return "Appending activation line"
+	case "toml-import":
+		return "Importing into " + t.Activate.TOMLPath
 	default:
 		return "Activating"
 	}

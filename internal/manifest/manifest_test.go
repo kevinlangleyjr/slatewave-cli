@@ -88,6 +88,7 @@ func TestEmbeddedManifests_ActivateTypesAreKnown(t *testing.T) {
 		"ini-key":           true,
 		"gitconfig-include": true,
 		"shell-rc":          true,
+		"toml-import":       true,
 	}
 	all, _ := LoadAll()
 	for _, th := range all {
