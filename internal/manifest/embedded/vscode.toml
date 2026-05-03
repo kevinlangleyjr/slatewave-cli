@@ -1,0 +1,16 @@
+[theme]
+slug = "vscode"
+name = "Slatewave for VSCode"
+category = "editor"
+detect_command = "command -v code"
+
+[install]
+type = "vscode-ext"
+identifier = "kevinlangleyjr.slatewave"
+
+[activate]
+type = "none"
+
+[verify]
+command = "code --list-extensions | grep -i slatewave"
+expect = "slatewave"

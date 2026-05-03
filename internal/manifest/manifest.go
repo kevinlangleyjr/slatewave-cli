@@ -1,0 +1,116 @@
+// Package manifest models the per-theme slatewave.toml file each
+// Slatewave theme repo ships at its root. The manifest tells the
+// CLI everything it needs to install, activate, verify, and reverse
+// the theme — without reading the theme's prose docs.
+//
+// See the v0.1 manifests in slatewave-cli/manifests/ for examples.
+package manifest
+
+// Theme is the top-level shape of a slatewave.toml file.
+type Theme struct {
+	Theme    Meta     `toml:"theme"`
+	Install  Install  `toml:"install"`
+	Activate Activate `toml:"activate"`
+	Verify   Verify   `toml:"verify"`
+}
+
+// Meta holds the theme's identity + tool detection.
+type Meta struct {
+	// Slug is the canonical CLI identifier (e.g. "bat", "btop"). Must
+	// match the theme's slug on getslatewave.
+	Slug string `toml:"slug"`
+	// Name is the human-readable display name ("Slatewave for bat").
+	Name string `toml:"name"`
+	// Category mirrors the website's category enum.
+	Category string `toml:"category"`
+	// DetectCommand runs to verify the underlying tool is present
+	// before any install action ("bat --version", "btop --version").
+	// If non-zero exit → CLI errors with "<tool> not detected" and
+	// does NOT fall back to installing the tool itself (per design).
+	DetectCommand string `toml:"detect_command"`
+}
+
+// Install describes how to put the theme files in place.
+type Install struct {
+	// Type is the install dispatch tag. Each value maps to a function
+	// in internal/installer.
+	//
+	//   curl              — fetch URL → write to Dest
+	//   clone             — git clone Repo → CloneDest
+	//   vscode-ext        — code --install-extension Identifier
+	//   marketplace       — open URL in browser, exit (no automation)
+	//   gui-import        — write file to Dest, then `open Dest`
+	//   clipboard         — copy Payload to clipboard, print instructions
+	//   manual            — print Instructions and exit
+	Type string `toml:"type"`
+
+	// Common fields (used by multiple types)
+	URL  string `toml:"url"`  // curl, marketplace
+	Dest string `toml:"dest"` // curl, gui-import — destination path on disk
+
+	// clone-specific
+	Repo      string `toml:"repo"`       // git URL
+	CloneDest string `toml:"clone_dest"` // where to clone
+
+	// vscode-ext-specific
+	Identifier string `toml:"identifier"` // e.g. "kevinlangleyjr.slatewave"
+
+	// clipboard-specific
+	Payload string `toml:"payload"`
+
+	// manual-specific
+	Instructions []string `toml:"instructions"`
+
+	// Optional post-install hook — a command to run after the file is
+	// in place (e.g. `bat cache --build`).
+	Post *PostHook `toml:"post"`
+}
+
+// PostHook runs after a successful install.
+type PostHook struct {
+	// Description is shown as the step label ("Rebuilding bat cache").
+	Description string `toml:"description"`
+	// Command is the shell command to run.
+	Command string `toml:"command"`
+}
+
+// Activate describes how to flip the user's config to point at the
+// installed theme. Some themes have no separate activation step (the
+// install step also activates) — those use Type = "none".
+type Activate struct {
+	// Type is the activate dispatch tag.
+	//
+	//   none                 — install step also activates
+	//   ini-key              — set Key=Value in File
+	//   gitconfig-include    — add include.path to ~/.gitconfig
+	//   shell-rc             — append Line to ~/.zshrc / ~/.bashrc
+	//   toml-import          — add an import line to a TOML config
+	//   neovim-plugin-spec   — write a lazy.nvim plugin file
+	Type string `toml:"type"`
+
+	// ini-key fields
+	File  string `toml:"file"`
+	Key   string `toml:"key"`
+	Value string `toml:"value"`
+
+	// gitconfig-include fields
+	IncludePath string `toml:"include_path"`
+
+	// shell-rc fields
+	Files []string `toml:"files"` // candidate rc files (CLI picks the user's)
+	Line  string   `toml:"line"`
+
+	// toml-import fields
+	TOMLPath string `toml:"toml_path"` // e.g. ~/.config/alacritty/alacritty.toml
+	Import   string `toml:"import"`    // e.g. import = ["~/.config/alacritty/themes/slatewave.toml"]
+
+	// neovim-plugin-spec fields
+	PluginSpec string `toml:"plugin_spec"` // Lua plugin spec content
+}
+
+// Verify holds an optional smoke-test command run after install. Empty
+// VerifyCommand → CLI prints "no verify configured" and skips.
+type Verify struct {
+	Command string `toml:"command"`
+	Expect  string `toml:"expect"` // optional: expected substring in stdout
+}
