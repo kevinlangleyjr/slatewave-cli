@@ -2,7 +2,10 @@
 slug = "ghostty"
 name = "Slatewave for Ghostty"
 category = "terminal"
-detect_command = "command -v ghostty"
+# `command -v ghostty` only succeeds when the CLI is on $PATH. On a
+# stock macOS install Ghostty is dragged to /Applications and the CLI
+# isn't symlinked anywhere — fall through to the .app bundle check.
+detect_command = "command -v ghostty || test -d /Applications/Ghostty.app"
 
 [install]
 type = "curl"
