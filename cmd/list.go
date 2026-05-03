@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -23,6 +24,14 @@ var listCmd = &cobra.Command{
 		s, err := state.Load()
 		if err != nil {
 			return fmt.Errorf("load state: %w", err)
+		}
+
+		// Reconcile recorded state with reality. If a theme was uninstalled
+		// outside the CLI (e.g. `code --uninstall-extension` from VSCode's
+		// own UI), the install record lingers until we notice via the
+		// theme's verify command. Drop stale records and persist.
+		if reconciled := reconcileWithReality(s); reconciled > 0 {
+			_ = s.Save() // best-effort; if save fails, render still reflects reality
 		}
 
 		// Group by category in a stable order.
@@ -90,6 +99,46 @@ func installSuffix(rec state.Record) string {
 		return " (gitconfig include)"
 	}
 	return ""
+}
+
+// reconcileWithReality runs each recorded install's verify.command and
+// drops the record from state if the install is no longer detectable.
+// Returns the number of records removed.
+func reconcileWithReality(s *state.Store) int {
+	removed := 0
+	for _, slug := range s.AllSlugs() {
+		th, err := manifest.LoadOne(slug)
+		if err != nil {
+			// Manifest disappeared — our install record can't be reversed
+			// safely from here, but it's also not real anymore. Drop it.
+			s.Remove(slug)
+			removed++
+			continue
+		}
+		if !verifyInstalled(th) {
+			s.Remove(slug)
+			removed++
+		}
+	}
+	return removed
+}
+
+// verifyInstalled returns true if the theme's verify.command exits 0
+// and (when verify.expect is set) its output contains the expected
+// substring. An empty verify.command means "no way to check" — in
+// that case we trust the state record.
+func verifyInstalled(th manifest.Theme) bool {
+	if th.Verify.Command == "" {
+		return true
+	}
+	out, err := exec.Command("sh", "-c", th.Verify.Command).CombinedOutput()
+	if err != nil {
+		return false
+	}
+	if th.Verify.Expect != "" && !strings.Contains(string(out), th.Verify.Expect) {
+		return false
+	}
+	return true
 }
 
 func summary(all []manifest.Theme, s *state.Store) string {
