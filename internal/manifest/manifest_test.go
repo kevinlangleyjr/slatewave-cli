@@ -135,11 +135,29 @@ func TestEmbeddedManifests_FieldsByInstallType(t *testing.T) {
 		slug := th.Theme.Slug
 		switch th.Install.Type {
 		case "curl", "gui-import":
-			if th.Install.URL == "" {
-				t.Errorf("%s: %q install missing install.url", slug, th.Install.Type)
-			}
-			if th.Install.Dest == "" {
-				t.Errorf("%s: %q install missing install.dest", slug, th.Install.Type)
+			// curl supports two shapes: single-file via url+dest, or
+			// multi-file via [[install.files]]. Exactly one must be set,
+			// and a Files entry must have both fields.
+			hasSingle := th.Install.URL != "" || th.Install.Dest != ""
+			hasMulti := len(th.Install.Files) > 0
+			switch {
+			case hasSingle && hasMulti:
+				t.Errorf("%s: %q install sets both url/dest and files — pick one", slug, th.Install.Type)
+			case !hasSingle && !hasMulti:
+				t.Errorf("%s: %q install missing install.url/dest or install.files", slug, th.Install.Type)
+			case hasSingle:
+				if th.Install.URL == "" {
+					t.Errorf("%s: %q install missing install.url", slug, th.Install.Type)
+				}
+				if th.Install.Dest == "" {
+					t.Errorf("%s: %q install missing install.dest", slug, th.Install.Type)
+				}
+			default:
+				for i, f := range th.Install.Files {
+					if f.URL == "" || f.Dest == "" {
+						t.Errorf("%s: %q install files[%d] missing url or dest", slug, th.Install.Type, i)
+					}
+				}
 			}
 		case "clone":
 			if th.Install.Repo == "" {

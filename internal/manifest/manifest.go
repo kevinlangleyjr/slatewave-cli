@@ -47,6 +47,14 @@ type Install struct {
 	URL  string `toml:"url"`  // curl, marketplace
 	Dest string `toml:"dest"` // curl, gui-import — destination path on disk
 
+	// Files lets a curl install fetch multiple files in one shot — used
+	// when a theme ships more than one asset that has to land alongside
+	// the user's config (wezterm's `slatewave-full.lua` + its `slatewave.lua`
+	// dependency, for example). When set, URL/Dest must be empty; doCurl
+	// iterates Files and records each dest as a CreatedPath so uninstall
+	// reverses cleanly.
+	Files []InstallFile `toml:"files"`
+
 	// clone-specific
 	Repo      string `toml:"repo"`       // git URL
 	CloneDest string `toml:"clone_dest"` // default destination (used when no per-OS override fits)
@@ -67,6 +75,13 @@ type Install struct {
 	// Optional post-install hook — a command to run after the file is
 	// in place (e.g. `bat cache --build`).
 	Post *PostHook `toml:"post"`
+}
+
+// InstallFile is one entry in a multi-file curl install. URL is the
+// source, Dest is the on-disk path (supports ~ and $ENV expansion).
+type InstallFile struct {
+	URL  string `toml:"url"`
+	Dest string `toml:"dest"`
 }
 
 // PostHook runs after a successful install.
@@ -118,6 +133,12 @@ type Activate struct {
 	// config` stops Lua from seeing anything below it. Falls back to the
 	// append-with-marker behavior when the anchor isn't found.
 	InsertBefore string `toml:"insert_before"`
+	// CommentPrefix overrides the marker comment style for shell-rc.
+	// Defaults to "#" — correct for shell rc files, gitconfig, ssh
+	// config, etc. Lua targets must set this to "--" so the marker
+	// (`-- slatewave`) is a valid comment in the host file. Anything
+	// else (";", "//") is fine too.
+	CommentPrefix string `toml:"comment_prefix"`
 
 	// toml-import fields
 	TOMLPath string `toml:"toml_path"` // e.g. ~/.config/alacritty/alacritty.toml

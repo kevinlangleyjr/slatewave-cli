@@ -290,6 +290,288 @@ func TestActivate_ShellRC_CreatesFileWhenAbsent(t *testing.T) {
 	}
 }
 
+// indexOf returns the position of the first slice element equal to s,
+// or -1 when absent. Local helper for the splice tests below.
+func indexOf(slice []string, s string) int {
+	for i, v := range slice {
+		if v == s {
+			return i
+		}
+	}
+	return -1
+}
+
+// ----- shell-rc scaffold path -----
+
+const wezScaffold = `local wezterm = require 'wezterm'
+local config  = wezterm.config_builder()
+
+config.color_scheme = 'Slatewave'
+
+return config
+`
+
+func wezTheme(target string) manifest.Theme {
+	return manifest.Theme{
+		Theme: manifest.Meta{Slug: "wezterm"},
+		Activate: manifest.Activate{
+			Type:          "shell-rc",
+			Files:         []string{target},
+			Line:          "config.color_scheme = 'Slatewave'",
+			Scaffold:      wezScaffold,
+			InsertBefore:  "return config",
+			CommentPrefix: "--",
+		},
+	}
+}
+
+// Missing file + scaffold set → scaffold becomes the full file contents
+// and the path is recorded as a CreatedPath (so uninstall removes the
+// file we created, rather than splicing one line out of it).
+func TestActivate_ShellRC_ScaffoldWritesFullFileWhenMissing(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "wezterm", "wezterm.lua")
+
+	rec := state.Record{}
+	if err := Activate(wezTheme(target), &rec, Options{}); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+
+	got, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("scaffold not written: %v", err)
+	}
+	if string(got) != wezScaffold {
+		t.Errorf("scaffold not written verbatim.\n--- want ---\n%s\n--- got ---\n%s", wezScaffold, got)
+	}
+	if rec.AppendedLine != nil {
+		t.Errorf("scaffold path recorded AppendedLine = %+v, want nil (uninstall should delete the file, not splice a line)", rec.AppendedLine)
+	}
+	if len(rec.CreatedPaths) != 1 || rec.CreatedPaths[0] != target {
+		t.Errorf("CreatedPaths = %v, want [%q]", rec.CreatedPaths, target)
+	}
+}
+
+// Empty file (touched but never edited) is the same case as missing —
+// we still own the contents and write the scaffold.
+func TestActivate_ShellRC_ScaffoldWritesWhenFileWhitespaceOnly(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "wezterm.lua")
+	if err := os.WriteFile(target, []byte("   \n\t\n"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	rec := state.Record{}
+	if err := Activate(wezTheme(target), &rec, Options{}); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+	got, _ := os.ReadFile(target)
+	if !strings.Contains(string(got), "wezterm.config_builder()") {
+		t.Errorf("scaffold did not replace whitespace-only file:\n%s", got)
+	}
+}
+
+// Existing wezterm.lua with real content: scaffold must not overwrite,
+// and the activation line must land ABOVE `return config` (Lua halts at
+// return; lines below it never run). The append fallback is wrong here.
+func TestActivate_ShellRC_InsertBeforeSplicesAboveAnchor(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "wezterm.lua")
+	original := "local wezterm = require 'wezterm'\nlocal config = wezterm.config_builder()\n\nreturn config\n"
+	if err := os.WriteFile(target, []byte(original), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	rec := state.Record{}
+	if err := Activate(wezTheme(target), &rec, Options{}); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+
+	got, _ := os.ReadFile(target)
+	gotLines := strings.Split(string(got), "\n")
+	colorIdx := indexOf(gotLines, "config.color_scheme = 'Slatewave'")
+	returnIdx := indexOf(gotLines, "return config")
+	if colorIdx == -1 {
+		t.Fatalf("activation line missing from spliced file:\n%s", got)
+	}
+	if returnIdx == -1 {
+		t.Fatalf("`return config` no longer in file:\n%s", got)
+	}
+	if colorIdx >= returnIdx {
+		t.Errorf("activation line at idx %d, `return config` at idx %d — line should land ABOVE `return config`:\n%s", colorIdx, returnIdx, got)
+	}
+	// User's original lines must all still be present and in order.
+	for _, want := range []string{"local wezterm = require 'wezterm'", "local config = wezterm.config_builder()", "return config"} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("splice dropped user line %q; file now:\n%s", want, got)
+		}
+	}
+	// The Lua-targeting wezTheme uses `--` for the marker so the inserted
+	// block is a valid Lua comment, not a syntax error. The marker must
+	// sit immediately above the activation line for the uninstaller's
+	// "drop marker + next line" heuristic to round-trip.
+	if !strings.Contains(string(got), "-- slatewave\nconfig.color_scheme = 'Slatewave'\n") {
+		t.Errorf("splice didn't keep `-- slatewave` adjacent to the activation line:\n%s", got)
+	}
+	if strings.Contains(string(got), "# slatewave") {
+		t.Errorf("default `#` marker leaked into a Lua-targeted splice:\n%s", got)
+	}
+	if rec.AppendedLine == nil || rec.AppendedLine.File != target {
+		t.Errorf("splice should record AppendedLine for uninstall; got %+v", rec.AppendedLine)
+	}
+	if len(rec.CreatedPaths) != 0 {
+		t.Errorf("splice should NOT record CreatedPaths; got %v", rec.CreatedPaths)
+	}
+}
+
+// When InsertBefore doesn't match anything in the file, fall back to the
+// append-with-marker behavior so manifests can opt into "splice if you
+// can, append otherwise" without the activator failing closed.
+func TestActivate_ShellRC_InsertBeforeFallsBackToAppend(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "wezterm.lua")
+	// Custom config without `return config` — the user wrote their own
+	// structure that the manifest's anchor doesn't cover.
+	original := "local wezterm = require 'wezterm'\nlocal config = {}\n-- end\n"
+	if err := os.WriteFile(target, []byte(original), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	rec := state.Record{}
+	if err := Activate(wezTheme(target), &rec, Options{}); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+	got, _ := os.ReadFile(target)
+	if !strings.HasPrefix(string(got), original) {
+		t.Errorf("append fallback rewrote user content above the original; file now:\n%s", got)
+	}
+	if !strings.Contains(string(got), "-- slatewave\nconfig.color_scheme = 'Slatewave'\n") {
+		t.Errorf("append fallback didn't add marker + activation line:\n%s", got)
+	}
+}
+
+// markerComment unit tests — the helper that picks the comment style
+// for the activation marker.
+func TestMarkerComment_DefaultsToHash(t *testing.T) {
+	if got := markerComment(""); got != "# slatewave" {
+		t.Errorf("markerComment(\"\") = %q, want `# slatewave`", got)
+	}
+}
+
+func TestMarkerComment_RespectsCustomPrefix(t *testing.T) {
+	cases := map[string]string{
+		"--":  "-- slatewave",
+		"//":  "// slatewave",
+		";":   "; slatewave",
+		"#":   "# slatewave",
+		"REM": "REM slatewave",
+	}
+	for prefix, want := range cases {
+		if got := markerComment(prefix); got != want {
+			t.Errorf("markerComment(%q) = %q, want %q", prefix, got, want)
+		}
+	}
+}
+
+// spliceBefore unit checks: substring matching + anchor-not-found
+// returning ok=false so the caller can fall back to append.
+func TestSpliceBefore_InsertsAboveFirstAnchorMatch(t *testing.T) {
+	in := "a\nb\nreturn config\nc\n"
+	out, ok := spliceBefore(in, "return config", "# slatewave", "MARKER")
+	if !ok {
+		t.Fatal("expected splice ok=true")
+	}
+	want := "a\nb\n# slatewave\nMARKER\n\nreturn config\nc\n"
+	if out != want {
+		t.Errorf("splice output mismatch.\n--- want ---\n%q\n--- got ---\n%q", want, out)
+	}
+}
+
+func TestSpliceBefore_AnchorMissingReturnsFalse(t *testing.T) {
+	in := "a\nb\nc\n"
+	out, ok := spliceBefore(in, "return config", "# slatewave", "MARKER")
+	if ok {
+		t.Errorf("anchor missing should return ok=false; got out=%q", out)
+	}
+	if out != in {
+		t.Errorf("output should equal input on miss; got %q, want %q", out, in)
+	}
+}
+
+func TestSpliceBefore_PreservesNoTrailingNewline(t *testing.T) {
+	// Input without a trailing newline (rare but possible) — output must
+	// not gain or lose the EOF newline.
+	in := "a\nreturn config"
+	out, ok := spliceBefore(in, "return config", "# slatewave", "MARKER")
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if strings.HasSuffix(out, "\n") {
+		t.Errorf("trailing newline added where input had none: %q", out)
+	}
+}
+
+// Marker arg is plumbed through verbatim — Lua targets pass `-- slatewave`
+// so the inserted block is a valid Lua comment, not a syntax error.
+func TestSpliceBefore_LuaCommentMarker(t *testing.T) {
+	in := "local config = {}\nreturn config\n"
+	out, ok := spliceBefore(in, "return config", "-- slatewave", "require('x')")
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if !strings.Contains(out, "-- slatewave\nrequire('x')\n") {
+		t.Errorf("Lua marker not threaded through; output:\n%s", out)
+	}
+	if strings.Contains(out, "# slatewave") {
+		t.Errorf("# slatewave leaked into Lua-targeted splice:\n%s", out)
+	}
+}
+
+// Scaffold + empty file with DryRun: must not touch the filesystem and
+// must not record a CreatedPath.
+func TestActivate_ShellRC_ScaffoldRespectsDryRun(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "wezterm.lua")
+
+	rec := state.Record{}
+	if err := Activate(wezTheme(target), &rec, Options{DryRun: true}); err != nil {
+		t.Fatalf("Activate dry-run: %v", err)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("dry-run wrote the file: stat err = %v", err)
+	}
+	if len(rec.CreatedPaths) != 0 {
+		t.Errorf("dry-run recorded CreatedPaths = %v, want none", rec.CreatedPaths)
+	}
+}
+
+// Re-running install when the scaffold already wrote the activation line
+// must be a no-op — the idempotency scanner sees the line and bails before
+// the scaffold branch even runs.
+func TestActivate_ShellRC_ScaffoldIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "wezterm.lua")
+
+	th := wezTheme(target)
+	rec := state.Record{}
+	if err := Activate(th, &rec, Options{}); err != nil {
+		t.Fatalf("first Activate: %v", err)
+	}
+	snapshot, _ := os.ReadFile(target)
+
+	rec2 := state.Record{}
+	if err := Activate(th, &rec2, Options{}); err != nil {
+		t.Fatalf("second Activate: %v", err)
+	}
+	after, _ := os.ReadFile(target)
+	if string(snapshot) != string(after) {
+		t.Errorf("second Activate mutated the scaffolded file:\nbefore:\n%s\nafter:\n%s", snapshot, after)
+	}
+	if rec2.AppendedLine != nil || len(rec2.CreatedPaths) > 0 {
+		t.Errorf("idempotent Activate recorded reversal info: AppendedLine=%+v CreatedPaths=%v", rec2.AppendedLine, rec2.CreatedPaths)
+	}
+}
+
 // ----- pickShellRC -----
 
 func TestPickShellRC_PrefersExistingFile(t *testing.T) {
