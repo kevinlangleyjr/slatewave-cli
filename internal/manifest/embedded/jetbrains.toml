@@ -18,3 +18,12 @@ instructions = [
 
 [activate]
 type = "none"
+
+[verify]
+# JetBrains drops marketplace-installed plugins into <config>/plugins/.
+# Look in both the macOS and Linux locations and across any IDE versions
+# the user has installed. The plugin's on-disk dir name varies by IDE
+# version + install method, so we case-insensitively glob for anything
+# slatewave-named under any plugins/ folder. Find errors when a search
+# path doesn't exist, so 2>/dev/null swallows that case.
+command = "find \"$HOME/Library/Application Support/JetBrains\" \"$HOME/.config/JetBrains\" -type d -iname '*slatewave*' 2>/dev/null | grep -q ."
