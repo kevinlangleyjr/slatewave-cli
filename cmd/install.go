@@ -97,6 +97,14 @@ func resolveSlugs(args []string, bulk bool) ([]string, error) {
 	return out, nil
 }
 
+// noManifestError builds the standard "no manifest for X" error, appending a "did you mean Y?" hint when manifest.SuggestSlug finds a close match. Shared across install / installInteractiveTUI so the suggestion behavior stays consistent.
+func noManifestError(slug string) error {
+	if hint := manifest.SuggestSlug(slug); hint != "" {
+		return fmt.Errorf("no manifest for %q — did you mean %q? (run `slatewave list` to see all)", slug, hint)
+	}
+	return fmt.Errorf("no manifest for %q (run `slatewave list` to see available themes)", slug)
+}
+
 // installInteractiveTUI runs the install pipeline through the bubbletea dashboard. It loads each slug's manifest, drops themes already recorded in state (matching installBulk's skip behavior), and hands the rest to tui.RunInstall — which renders live progress and surfaces failures in the summary line rather than per-theme errors.
 func installInteractiveTUI(slugs []string) error {
 	s, err := state.Load()
@@ -113,7 +121,7 @@ func installInteractiveTUI(slugs []string) error {
 		}
 		t, err := manifest.LoadOne(slug)
 		if err != nil {
-			return fmt.Errorf("no manifest for %q (run `slatewave list` to see available themes)", slug)
+			return noManifestError(slug)
 		}
 		themes = append(themes, t)
 	}
@@ -182,7 +190,7 @@ func installBulk(slugs []string) error {
 func installOne(slug string, suppressFinal bool) error {
 	t, err := manifest.LoadOne(slug)
 	if err != nil {
-		return fmt.Errorf("no manifest for %q (run `slatewave list` to see available themes)", slug)
+		return noManifestError(slug)
 	}
 
 	ui.Header("Installing", t.Theme.Name)
