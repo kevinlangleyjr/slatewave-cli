@@ -59,7 +59,7 @@ func refetch(t manifest.Theme, opts Options) error {
 	if err != nil {
 		return fmt.Errorf("fetch %s: %w", t.Install.URL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("fetch %s: %s", t.Install.URL, resp.Status)
 	}
@@ -67,9 +67,9 @@ func refetch(t manifest.Theme, opts Options) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name())
+	defer func() { _ = os.Remove(tmp.Name()) }()
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return err
 	}
 	if err := tmp.Close(); err != nil {

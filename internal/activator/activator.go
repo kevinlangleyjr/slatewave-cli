@@ -195,7 +195,7 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	if err != nil {
 		return fmt.Errorf("open %s: %w", target, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	prefix := ""
 	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
 		prefix = "\n"
