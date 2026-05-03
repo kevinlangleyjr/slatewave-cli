@@ -84,7 +84,7 @@ func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, err
 	if err != nil {
 		return rec, fmt.Errorf("fetch %s: %w", t.Install.URL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return rec, fmt.Errorf("fetch %s: %s", t.Install.URL, resp.Status)
 	}
@@ -92,7 +92,7 @@ func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, err
 	if err != nil {
 		return rec, fmt.Errorf("write %s: %w", dest, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		return rec, fmt.Errorf("write %s: %w", dest, err)
 	}

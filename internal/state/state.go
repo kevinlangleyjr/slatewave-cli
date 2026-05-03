@@ -96,9 +96,9 @@ func (s *Store) Save() error {
 	if err != nil {
 		return fmt.Errorf("create tmp: %w", err)
 	}
-	defer os.Remove(tmp.Name())
+	defer func() { _ = os.Remove(tmp.Name()) }()
 	if err := toml.NewEncoder(tmp).Encode(s); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return fmt.Errorf("encode state: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
