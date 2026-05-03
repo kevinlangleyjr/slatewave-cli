@@ -44,16 +44,29 @@ Or from a release binary on the [Releases page](https://github.com/kevinlangleyj
 ## Commands
 
 ```
+slatewave init                          # interactive setup wizard — detect + pick + install
+slatewave browse                        # interactive TUI list with filter, install, uninstall
 slatewave list                          # every theme, with ● / ○ install markers
 slatewave install <theme>               # install + activate one theme
 slatewave install --all                 # install every shipping theme
 slatewave install --category=editor     # install every theme in a category
+slatewave install --interactive <flags> # live progress dashboard instead of streamed steps
 slatewave install <theme> --dry-run     # preview the plan
 slatewave update <theme>                # re-fetch curl assets / git pull clones
 slatewave update --all                  # update every installed theme
 slatewave uninstall <theme>             # reverse files, restore backups, remove appended lines
 slatewave status [theme]                # show install footprint + paths
+slatewave doctor                        # diagnose drift across installed themes (read-only)
+slatewave doctor --fix                  # interactively remediate stale / missing-tool / orphan rows
 ```
+
+First time? Run `slatewave init` — it detects which Slatewave-supported
+tools are on this machine, multi-selects what's worth installing, and
+runs the install through a live dashboard.
+
+Already have themes installed and want to spelunk the catalog? Run
+`slatewave browse` — `↑/↓` to navigate, `/` to filter, `i` / `u` to
+install or uninstall the focused row.
 
 ## Shell completions
 
@@ -95,7 +108,7 @@ key   = "color_theme"
 value = "slatewave"
 ```
 
-The CLI dispatches on `[install].type` (`curl` / `clone` / `vscode-ext` / `marketplace` / `gui-import` / `manual`) and `[activate].type` (`ini-key` / `gitconfig-include` / `shell-rc` / `none`).
+The CLI dispatches on `[install].type` (`curl` / `clone` / `vscode-ext` / `marketplace` / `gui-import` / `manual`) and `[activate].type` (`ini-key` / `gitconfig-include` / `shell-rc` / `toml-import` / `none`).
 
 ## Uninstall safety
 
