@@ -8,16 +8,24 @@ detect_command = "lsd --version"
 type = "curl"
 url = "https://raw.githubusercontent.com/kevinlangleyjr/lsd-slatewave/main/colors.yaml"
 dest = "$HOME/.config/lsd/colors.yaml"
-instructions = [
-  "Open or create ~/.config/lsd/config.yaml and set:",
-  "    color:",
-  "      when: auto",
-  "      theme: custom",
-  "(YAML two-key edit isn't automated yet — landing in v0.0.3.)",
-]
 
 [activate]
-type = "none"
+# lsd's `colors.yaml` is loaded only when ~/.config/lsd/config.yaml has
+#   color:
+#     when: auto
+#     theme: custom
+# yaml-set drops these two keys under `color:` while preserving the
+# user's other top-level keys and comments.
+type = "yaml-set"
+yaml_path = "$HOME/.config/lsd/config.yaml"
+
+[[activate.yaml_set]]
+path = "color.when"
+value = "auto"
+
+[[activate.yaml_set]]
+path = "color.theme"
+value = "custom"
 
 [verify]
 command = "test -f $HOME/.config/lsd/colors.yaml"
