@@ -1,0 +1,25 @@
+# golangci-lint v2 configuration. CI runs golangci-lint-action@v8 which
+# uses v2.x; v1 binaries can't analyze this repo's Go directive anyway.
+#
+# Why exclude fmt.Fprint*: every call site here writes to a stdout-style
+# writer (os.Stdout via internal/ui's package-level W, or os.Stderr from
+# main). A failed write is non-actionable from the call site and would
+# only ever happen on a closed terminal stream where there's nothing
+# useful to do but exit. The default errcheck rule produces ~30 noise
+# findings across cmd/ and ui/ that obscure real issues.
+#
+# Defer cleanup (file Close, temp Remove) is handled at the call site
+# via `defer func() { _ = X() }()` rather than excluded globally —
+# those errors are sometimes meaningful (e.g., Close on a write file
+# can surface buffered-flush failures) and silencing them everywhere
+# would hide reliability gaps.
+
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintln
+        - fmt.Fprintf
