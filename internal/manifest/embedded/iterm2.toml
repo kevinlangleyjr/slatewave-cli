@@ -1,0 +1,24 @@
+[theme]
+slug = "iterm2"
+name = "Slatewave for iTerm2"
+category = "terminal"
+# iTerm2 doesn't ship a CLI tool; check for the app bundle instead.
+detect_command = "test -d /Applications/iTerm.app"
+
+[install]
+# Fetch the preset file then `open` it — iTerm2 picks it up and offers
+# to import. The user still has to confirm in iTerm2 → Settings →
+# Profiles → Colors → Color Presets.
+type = "gui-import"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/iterm2-slatewave/main/slatewave.itermcolors"
+dest = "$HOME/Downloads/slatewave.itermcolors"
+instructions = [
+  "iTerm2 opens with an import prompt — confirm to add the preset",
+  "Then iTerm2 → Settings → Profiles → Colors → Color Presets → slatewave",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -f ~/Downloads/slatewave.itermcolors"

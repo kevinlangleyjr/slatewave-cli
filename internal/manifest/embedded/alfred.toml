@@ -1,0 +1,20 @@
+[theme]
+slug = "alfred"
+name = "Slatewave for Alfred"
+category = "productivity"
+detect_command = "test -d /Applications/Alfred.app -o -d /Applications/Alfred\\ 5.app"
+
+[install]
+type = "gui-import"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/alfred-slatewave/main/Slatewave.alfredappearance"
+dest = "$HOME/Downloads/Slatewave.alfredappearance"
+instructions = [
+  "Alfred opens with the Appearance pane and Slatewave pre-selected",
+  "Click Import to confirm — it'll appear in your theme list",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -f ~/Downloads/Slatewave.alfredappearance"
