@@ -1,0 +1,10 @@
+# Built binary
+slatewave
+
+# Go cache
+/dist/
+*.out
+*.test
+
+# OS
+.DS_Store
