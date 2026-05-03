@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://getslatewave.com/schemas/manifest.json",
+  "title": "Slatewave CLI manifest",
+  "description": "Per-theme manifest consumed by the slatewave CLI. Each shipping Slatewave theme has one of these in slatewave-cli/internal/manifest/embedded/<slug>.toml. Mirrors the Theme struct in slatewave-cli/internal/manifest/manifest.go.",
+  "type": "object",
+  "required": ["theme", "install"],
+  "additionalProperties": false,
+  "properties": {
+    "theme": {
+      "type": "object",
+      "description": "Identity + tool detection.",
+      "required": ["slug", "name", "category", "detect_command"],
+      "additionalProperties": false,
+      "properties": {
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical CLI identifier (e.g. \"bat\", \"btop\"). Must match the manifest's filename (<slug>.toml) and the slug on getslatewave.com."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable display name (e.g. \"Slatewave for bat\")."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["editor", "terminal", "notes", "browser", "chat", "productivity", "other"],
+          "description": "Category, mirroring the website's category enum."
+        },
+        "detect_command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shell command run to verify the underlying tool is installed before any install action. Non-zero exit → CLI errors with \"<tool> not detected\" without modifying any files."
+        }
+      }
+    },
+    "install": {
+      "type": "object",
+      "description": "How to put the theme files in place.",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["curl", "clone", "vscode-ext", "marketplace", "gui-import", "manual"],
+          "description": "Install dispatch tag. Each value maps to a function in internal/installer."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL to fetch (curl, gui-import, marketplace)."
+        },
+        "dest": {
+          "type": "string",
+          "description": "Destination path on disk (curl, gui-import). Supports ~ and $ENV expansion."
+        },
+        "repo": {
+          "type": "string",
+          "description": "git URL to clone (clone)."
+        },
+        "clone_dest": {
+          "type": "string",
+          "description": "Where to clone the repo (clone). Supports ~ and $ENV expansion."
+        },
+        "identifier": {
+          "type": "string",
+          "description": "VSCode extension ID (vscode-ext), e.g. \"kevinlangleyjr.slatewave\"."
+        },
+        "payload": {
+          "type": "string",
+          "description": "Clipboard payload (clipboard install type — reserved for future use)."
+        },
+        "instructions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Lines printed verbatim after the install runs. Required when install.type = \"manual\"."
+        },
+        "post": {
+          "type": "object",
+          "description": "Optional post-install hook (e.g. `bat cache --build`).",
+          "required": ["description", "command"],
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string",
+              "description": "Step label shown to the user (\"Rebuilding bat cache\")."
+            },
+            "command": {
+              "type": "string",
+              "description": "Shell command to run after install completes."
+            }
+          }
+        }
+      }
+    },
+    "activate": {
+      "type": "object",
+      "description": "How to flip the user's config to point at the installed theme. Empty/none means the install step also activates.",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["", "none", "ini-key", "gitconfig-include", "shell-rc", "toml-import"],
+          "description": "Activate dispatch tag."
+        },
+        "file": {
+          "type": "string",
+          "description": "Target config file (ini-key)."
+        },
+        "key": {
+          "type": "string",
+          "description": "Config key to set (ini-key)."
+        },
+        "value": {
+          "type": "string",
+          "description": "Value to set the key to (ini-key)."
+        },
+        "include_path": {
+          "type": "string",
+          "description": "Path to add to ~/.gitconfig include.path (gitconfig-include)."
+        },
+        "files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Candidate rc / config files in priority order (shell-rc). The activator picks the first existing one, falling back to $SHELL match, then the first candidate."
+        },
+        "line": {
+          "type": "string",
+          "description": "Line to append (shell-rc)."
+        },
+        "toml_path": {
+          "type": "string",
+          "description": "TOML file to add an import entry to (toml-import). Supports ~ and $ENV expansion."
+        },
+        "import": {
+          "type": "string",
+          "description": "Path to add to the import = [...] array (toml-import)."
+        },
+        "plugin_spec": {
+          "type": "string",
+          "description": "Lua plugin spec content (neovim-plugin-spec — reserved for future use)."
+        }
+      }
+    },
+    "verify": {
+      "type": "object",
+      "description": "Optional smoke-test that runs after install (and is also re-run by `slatewave list` to detect drift).",
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Shell command. Non-zero exit means the install no longer detectable."
+        },
+        "expect": {
+          "type": "string",
+          "description": "Optional substring expected in the command's stdout."
+        }
+      }
+    }
+  }
+}

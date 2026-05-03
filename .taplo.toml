@@ -1,0 +1,15 @@
+# taplo / Even Better TOML config.
+#
+# Without this, taplo auto-associates schemas by filename — anything
+# named starship.toml gets the canonical Starship config schema applied,
+# alacritty.toml gets the Alacritty schema, etc. That trips on every
+# manifest under internal/manifest/embedded/ since those files share
+# names with the tools they describe but are slatewave-CLI manifests,
+# not those tools' configs.
+#
+# Map the embedded manifests at our own JSON Schema so the editor
+# validates the right thing.
+
+[[rule]]
+include = ["internal/manifest/embedded/**/*.toml"]
+schema.path = "./schemas/manifest.schema.json"
