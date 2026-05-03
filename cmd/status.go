@@ -11,9 +11,10 @@ import (
 )
 
 var statusCmd = &cobra.Command{
-	Use:   "status [theme]",
-	Short: "Show what's installed (and where the files live)",
-	Args:  cobra.MaximumNArgs(1),
+	Use:               "status [theme]",
+	Short:             "Show what's installed (and where the files live)",
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: validInstalledArgs,
 	RunE: func(_ *cobra.Command, args []string) error {
 		s, err := state.Load()
 		if err != nil {

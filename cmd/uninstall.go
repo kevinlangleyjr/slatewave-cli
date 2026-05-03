@@ -14,9 +14,10 @@ import (
 var uninstallDryRun bool
 
 var uninstallCmd = &cobra.Command{
-	Use:   "uninstall <theme>",
-	Short: "Remove a Slatewave theme and revert config edits",
-	Args:  cobra.ExactArgs(1),
+	Use:               "uninstall <theme>",
+	Short:             "Remove a Slatewave theme and revert config edits",
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: validInstalledArgs,
 	RunE: func(_ *cobra.Command, args []string) error {
 		slug := args[0]
 

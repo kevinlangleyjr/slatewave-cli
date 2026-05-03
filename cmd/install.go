@@ -31,7 +31,8 @@ In bulk mode, themes already recorded in state are skipped (so re-running
 ` + "`--all`" + ` after adding a few new themes only installs the new ones).
 Individual failures don't bail the rest — bulk install reports a summary
 at the end.`,
-	Args: cobra.MaximumNArgs(1),
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: validInstallArgs,
 	RunE: func(_ *cobra.Command, args []string) error {
 		if installAll && installCategory != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
@@ -60,6 +61,7 @@ func init() {
 	installCmd.Flags().BoolVar(&installDryRun, "dry-run", false, "Print what would happen without writing files")
 	installCmd.Flags().BoolVar(&installAll, "all", false, "Install every shipping theme")
 	installCmd.Flags().StringVar(&installCategory, "category", "", "Install every theme in this category (editor / terminal / notes / productivity / chat)")
+	_ = installCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
 // resolveSlugs returns the slugs to install. For single-theme mode it's
