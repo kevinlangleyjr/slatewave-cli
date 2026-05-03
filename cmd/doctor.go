@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -156,8 +155,8 @@ func buildFixes(rows []doctorRow) []tui.Fix {
 }
 
 func diagnose(s *state.Store) []doctorRow {
+	// AllSlugs already returns sorted, no need to re-sort here.
 	slugs := s.AllSlugs()
-	sort.Strings(slugs)
 
 	rows := make([]doctorRow, 0, len(slugs))
 	for _, slug := range slugs {

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -129,11 +130,12 @@ func (s *Store) Remove(slug string) {
 	delete(s.Records, slug)
 }
 
-// AllSlugs returns the slugs of every installed theme.
+// AllSlugs returns the slugs of every installed theme, sorted ascending. Callers in cmd/list, cmd/update, and cmd/doctor render slugs in this order so successive runs produce identical output (helpful for diffs and screen-reader users).
 func (s *Store) AllSlugs() []string {
 	out := make([]string, 0, len(s.Records))
 	for k := range s.Records {
 		out = append(out, k)
 	}
+	sort.Strings(out)
 	return out
 }
