@@ -75,16 +75,10 @@ func runInit(_ *cobra.Command, _ []string) error {
 	}
 
 	fmt.Fprintln(ui.W)
-	for i, slug := range slugs {
-		if i > 0 {
-			fmt.Fprintln(ui.W)
-		}
-		if err := installOne(slug, true); err != nil {
-			ui.Errorf("%s: %v", slug, err)
-		}
+	if err := installInteractiveTUI(slugs); err != nil {
+		return err
 	}
 
-	fmt.Fprintln(ui.W)
 	ui.Done(fmt.Sprintf("%d theme(s) processed. Welcome to Slatewave.", len(slugs)))
 	return nil
 }

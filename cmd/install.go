@@ -9,13 +9,15 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/installer"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/tui"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
 var (
-	installDryRun   bool
-	installAll      bool
-	installCategory string
+	installDryRun      bool
+	installAll         bool
+	installCategory    string
+	installInteractive bool
 )
 
 var installCmd = &cobra.Command{
@@ -50,6 +52,10 @@ at the end.`,
 			return err
 		}
 
+		if installInteractive {
+			return installInteractiveTUI(slugs)
+		}
+
 		if !bulk {
 			return installOne(slugs[0], false)
 		}
@@ -61,6 +67,7 @@ func init() {
 	installCmd.Flags().BoolVar(&installDryRun, "dry-run", false, "Print what would happen without writing files")
 	installCmd.Flags().BoolVar(&installAll, "all", false, "Install every shipping theme")
 	installCmd.Flags().StringVar(&installCategory, "category", "", "Install every theme in this category (editor / terminal / notes / productivity / chat)")
+	installCmd.Flags().BoolVar(&installInteractive, "interactive", false, "Show a live progress dashboard instead of streamed step output")
 	_ = installCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
@@ -88,6 +95,42 @@ func resolveSlugs(args []string, bulk bool) ([]string, error) {
 		return nil, fmt.Errorf("no themes available")
 	}
 	return out, nil
+}
+
+// installInteractiveTUI runs the install pipeline through the bubbletea dashboard. It loads each slug's manifest, drops themes already recorded in state (matching installBulk's skip behavior), and hands the rest to tui.RunInstall — which renders live progress and surfaces failures in the summary line rather than per-theme errors.
+func installInteractiveTUI(slugs []string) error {
+	s, err := state.Load()
+	if err != nil {
+		return fmt.Errorf("load state: %w", err)
+	}
+
+	var themes []manifest.Theme
+	var skipped []string
+	for _, slug := range slugs {
+		if _, ok := s.Get(slug); ok {
+			skipped = append(skipped, slug)
+			continue
+		}
+		t, err := manifest.LoadOne(slug)
+		if err != nil {
+			return fmt.Errorf("no manifest for %q (run `slatewave list` to see available themes)", slug)
+		}
+		themes = append(themes, t)
+	}
+
+	for _, slug := range skipped {
+		ui.MutedLn(fmt.Sprintf("Skipping %s — already installed.", slug))
+	}
+	if len(skipped) > 0 {
+		fmt.Fprintln(ui.W)
+	}
+
+	if len(themes) == 0 {
+		ui.Done("Nothing to install — every requested theme is already installed.")
+		return nil
+	}
+
+	return tui.RunInstall(themes, tui.InstallOptions{DryRun: installDryRun})
 }
 
 // installBulk runs installOne for each slug, skipping themes already
