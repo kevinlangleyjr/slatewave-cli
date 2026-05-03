@@ -172,6 +172,24 @@ func doGitconfigInclude(t manifest.Theme, rec *state.Record, opts Options) error
 // doShellRC appends a line to whichever of t.Activate.Files exists
 // (or the one matching $SHELL if none yet exists). Idempotent: if the
 // line is already there, no-op.
+//
+// Three write modes:
+//
+//  1. Scaffold — target missing or whitespace-only and Scaffold is set:
+//     write Scaffold as the full file, record CreatedPath. Uninstall
+//     deletes the file. wezterm.lua fresh-install case.
+//
+//  2. Splice — target has content and InsertBefore matches a line: insert
+//     marker + Line above the first match. Needed for files where
+//     appending past terminating control flow would be dead code (Lua's
+//     `return config` is the canonical case).
+//
+//  3. Append — fallback. Add marker + Line to end of file. Used for
+//     shell rc files where order doesn't matter past the marker.
+//
+// The marker comment is `<CommentPrefix> slatewave` — defaulting to
+// "# slatewave" but switchable per manifest so Lua targets get a valid
+// `-- slatewave` comment instead of an invalid `#`.
 func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	if t.Activate.Line == "" {
 		return fmt.Errorf("shell-rc activate for %q missing line", t.Theme.Slug)
@@ -193,6 +211,44 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	if opts.DryRun {
 		return nil
 	}
+
+	marker := markerComment(t.Activate.CommentPrefix)
+
+	// Mode 1: scaffold. Target is missing or whitespace-only and the
+	// manifest has scaffold content to write. We own the file end-to-end,
+	// so uninstall reverses by deleting it (CreatedPath) rather than
+	// splicing out a single line.
+	fileEmpty := len(strings.TrimSpace(string(data))) == 0
+	if fileEmpty && t.Activate.Scaffold != "" {
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return fmt.Errorf("create parent dir: %w", err)
+		}
+		content := t.Activate.Scaffold
+		if !strings.HasSuffix(content, "\n") {
+			content += "\n"
+		}
+		if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+			return fmt.Errorf("write scaffold %s: %w", target, err)
+		}
+		rec.CreatedPaths = append(rec.CreatedPaths, target)
+		return nil
+	}
+
+	// Mode 2: splice above InsertBefore anchor. Substring-matched on the
+	// trimmed line content so the manifest doesn't have to reproduce the
+	// user's exact whitespace / trailing comments.
+	if t.Activate.InsertBefore != "" {
+		if updated, ok := spliceBefore(string(data), t.Activate.InsertBefore, marker, t.Activate.Line); ok {
+			if err := os.WriteFile(target, []byte(updated), 0o644); err != nil {
+				return fmt.Errorf("write %s: %w", target, err)
+			}
+			rec.AppendedLine = &state.Appended{File: target, Line: t.Activate.Line}
+			return nil
+		}
+		// anchor not found → fall through to append mode
+	}
+
+	// Mode 3: append.
 	f, err := os.OpenFile(target, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", target, err)
@@ -202,11 +258,56 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
 		prefix = "\n"
 	}
-	if _, err := f.WriteString(prefix + "\n# slatewave\n" + t.Activate.Line + "\n"); err != nil {
+	if _, err := f.WriteString(prefix + "\n" + marker + "\n" + t.Activate.Line + "\n"); err != nil {
 		return fmt.Errorf("append %s: %w", target, err)
 	}
 	rec.AppendedLine = &state.Appended{File: target, Line: t.Activate.Line}
 	return nil
+}
+
+// markerComment builds the marker line written above each appended /
+// spliced activation entry. Defaults to "# slatewave" — the right shape
+// for shell rc, gitconfig, ssh config, and most config-file dialects.
+// Manifests targeting comment-incompatible languages (Lua's `--`, SQL's
+// `--`, Lisp's `;`) override via Activate.CommentPrefix.
+func markerComment(commentPrefix string) string {
+	if commentPrefix == "" {
+		commentPrefix = "#"
+	}
+	return commentPrefix + " slatewave"
+}
+
+// spliceBefore inserts marker + line directly above the first occurrence
+// of a trimmed line containing anchor. Returns (updated, true) on a hit,
+// or (data, false) when the anchor isn't present so the caller can fall
+// back. Output preserves the original content's trailing newline (or its
+// absence).
+func spliceBefore(data, anchor, marker, line string) (string, bool) {
+	hadTrailingNewline := strings.HasSuffix(data, "\n")
+	lines := strings.Split(data, "\n")
+	// strings.Split on a trailing-newline string yields a final empty
+	// element — drop it so we don't insert before phantom EOF.
+	if hadTrailingNewline && len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	for i, l := range lines {
+		if !strings.Contains(strings.TrimSpace(l), anchor) {
+			continue
+		}
+		// marker + line + blank separator above the anchor so the
+		// inserted block is visually distinct from surrounding code.
+		insertion := []string{marker, line, ""}
+		out := make([]string, 0, len(lines)+len(insertion))
+		out = append(out, lines[:i]...)
+		out = append(out, insertion...)
+		out = append(out, lines[i:]...)
+		joined := strings.Join(out, "\n")
+		if hadTrailingNewline {
+			joined += "\n"
+		}
+		return joined, true
+	}
+	return data, false
 }
 
 // pickShellRC chooses which rc file to append to. Preference order:
