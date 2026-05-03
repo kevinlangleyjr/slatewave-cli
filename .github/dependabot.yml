@@ -1,0 +1,31 @@
+# Dependabot config — keeps the Go module deps and the GitHub Actions
+# pinned-by-major versions current. Weekly cadence avoids PR floods
+# from chatty upstream releases (lipgloss / bubbletea ship often).
+#
+# Grouped updates: charm.* deps move together (bubbles/bubbletea/lipgloss
+# share an internal x/ansi etc.) so they bump in one PR rather than four
+# overlapping ones.
+
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      charmbracelet:
+        patterns:
+          - "github.com/charmbracelet/*"
+      cobra:
+        patterns:
+          - "github.com/spf13/*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
