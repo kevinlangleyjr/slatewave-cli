@@ -125,20 +125,27 @@ func activateLabel(t manifest.Theme) string {
 	case "gitconfig-include":
 		return "Adding include.path to ~/.gitconfig"
 	case "shell-rc":
-		return "Appending to shell rc"
+		if len(t.Activate.Files) > 0 {
+			return "Appending to " + t.Activate.Files[0]
+		}
+		return "Appending activation line"
 	default:
 		return "Activating"
 	}
 }
 
 func doneMessage(t manifest.Theme) string {
-	switch t.Activate.Type {
-	case "shell-rc":
+	// Tool-specific guidance — bat picks up its config on next
+	// invocation, but a prompt change needs a shell restart.
+	switch t.Theme.Slug {
+	case "bat":
+		return "bat picks up the new theme on its next invocation."
+	case "btop":
+		return "Launch `btop` to see Slatewave applied."
+	case "delta":
+		return "Run a `git diff` in any repo to see Slatewave applied."
+	case "oh-my-posh", "starship":
 		return "Restart your shell or `source` your rc file."
-	case "ini-key":
-		if t.Theme.Slug == "btop" {
-			return "Launch `btop` to see Slatewave applied."
-		}
 	}
 	return "Slatewave is installed."
 }
