@@ -12,90 +12,196 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
-var installDryRun bool
+var (
+	installDryRun   bool
+	installAll      bool
+	installCategory string
+)
 
 var installCmd = &cobra.Command{
-	Use:   "install <theme>",
-	Short: "Install a Slatewave theme",
-	Args:  cobra.ExactArgs(1),
+	Use:   "install [theme]",
+	Short: "Install one Slatewave theme, an entire category, or every shipping theme",
+	Long: `Install a Slatewave theme.
+
+  slatewave install bat                  # one theme
+  slatewave install --category=editor    # every theme in a category
+  slatewave install --all                # every shipping theme
+
+In bulk mode, themes already recorded in state are skipped (so re-running
+` + "`--all`" + ` after adding a few new themes only installs the new ones).
+Individual failures don't bail the rest — bulk install reports a summary
+at the end.`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
-		slug := args[0]
-		t, err := manifest.LoadOne(slug)
-		if err != nil {
-			return fmt.Errorf("no manifest for %q (run `slatewave list` to see available themes)", slug)
+		if installAll && installCategory != "" {
+			return fmt.Errorf("--all and --category are mutually exclusive")
+		}
+		bulk := installAll || installCategory != ""
+		if bulk && len(args) > 0 {
+			return fmt.Errorf("don't pass a theme name with --all or --category")
+		}
+		if !bulk && len(args) == 0 {
+			return fmt.Errorf("specify a theme name, --all, or --category=<name>")
 		}
 
-		ui.Header("Installing", t.Theme.Name)
-		opts := installer.Options{DryRun: installDryRun}
-		actOpts := activator.Options{DryRun: installDryRun}
-
-		// Detect the underlying tool. Skip for marketplace-only and
-		// manual install types where the tool detection is the user's job.
-		if t.Install.Type != "marketplace" && t.Install.Type != "manual" {
-			done := ui.StepStart(fmt.Sprintf("Detecting %s", t.Theme.Slug))
-			if err := installer.Detect(t); err != nil {
-				done(err)
-				return err
-			}
-			done(nil)
-		}
-
-		// Install
-		done := ui.StepStart(installLabel(t))
-		rec, err := installer.Install(t, opts)
+		slugs, err := resolveSlugs(args, bulk)
 		if err != nil {
-			done(err)
 			return err
 		}
-		done(nil)
 
-		// Post-hook (folded into install logic; surface its own line)
-		if t.Install.Post != nil {
-			done := ui.StepStart(t.Install.Post.Description)
-			done(nil)
+		if !bulk {
+			return installOne(slugs[0], false)
 		}
-
-		// Activate
-		if t.Activate.Type != "" && t.Activate.Type != "none" {
-			done := ui.StepStart(activateLabel(t))
-			if err := activator.Activate(t, &rec, actOpts); err != nil {
-				done(err)
-				return err
-			}
-			done(nil)
-		}
-
-		// Persist state (skip on dry-run — no real install happened)
-		if !installDryRun {
-			s, err := state.Load()
-			if err != nil {
-				return fmt.Errorf("load state: %w", err)
-			}
-			s.Put(rec)
-			if err := s.Save(); err != nil {
-				return fmt.Errorf("save state: %w", err)
-			}
-		}
-
-		// Manual-install themes carry final instructions.
-		if t.Install.Type == "manual" || len(t.Install.Instructions) > 0 {
-			fmt.Fprintln(ui.W)
-			for _, line := range t.Install.Instructions {
-				ui.MutedLn("  " + line)
-			}
-		}
-
-		if installDryRun {
-			ui.Done("Dry run — no files written.")
-		} else {
-			ui.Done(doneMessage(t))
-		}
-		return nil
+		return installBulk(slugs)
 	},
 }
 
 func init() {
 	installCmd.Flags().BoolVar(&installDryRun, "dry-run", false, "Print what would happen without writing files")
+	installCmd.Flags().BoolVar(&installAll, "all", false, "Install every shipping theme")
+	installCmd.Flags().StringVar(&installCategory, "category", "", "Install every theme in this category (editor / terminal / notes / productivity / chat)")
+}
+
+// resolveSlugs returns the slugs to install. For single-theme mode it's
+// just args[0]; for bulk it filters by category if set.
+func resolveSlugs(args []string, bulk bool) ([]string, error) {
+	if !bulk {
+		return []string{args[0]}, nil
+	}
+	all, err := manifest.LoadAll()
+	if err != nil {
+		return nil, fmt.Errorf("load manifests: %w", err)
+	}
+	var out []string
+	for _, t := range all {
+		if installCategory != "" && t.Theme.Category != installCategory {
+			continue
+		}
+		out = append(out, t.Theme.Slug)
+	}
+	if len(out) == 0 {
+		if installCategory != "" {
+			return nil, fmt.Errorf("no themes in category %q", installCategory)
+		}
+		return nil, fmt.Errorf("no themes available")
+	}
+	return out, nil
+}
+
+// installBulk runs installOne for each slug, skipping themes already
+// recorded in state and continuing past individual failures so one
+// broken theme doesn't bail the rest of the run.
+func installBulk(slugs []string) error {
+	s, err := state.Load()
+	if err != nil {
+		return fmt.Errorf("load state: %w", err)
+	}
+
+	var installed, skipped, failed int
+	for i, slug := range slugs {
+		if _, ok := s.Get(slug); ok {
+			ui.MutedLn(fmt.Sprintf("Skipping %s — already installed.", slug))
+			skipped++
+			continue
+		}
+		if i > 0 {
+			fmt.Fprintln(ui.W)
+		}
+		if err := installOne(slug, true); err != nil {
+			ui.Errorf("%s: %v", slug, err)
+			failed++
+			continue
+		}
+		installed++
+	}
+
+	fmt.Fprintln(ui.W)
+	switch {
+	case failed > 0:
+		ui.Done(fmt.Sprintf("%d installed, %d skipped, %d failed.", installed, skipped, failed))
+	case installed == 0:
+		ui.Done(fmt.Sprintf("Nothing to install — %d already installed.", skipped))
+	default:
+		ui.Done(fmt.Sprintf("%d installed, %d skipped.", installed, skipped))
+	}
+	return nil
+}
+
+// installOne is the per-theme install pipeline: detect → install →
+// post-hook → activate → persist → instructions. Returns an error
+// rather than calling os.Exit so bulk mode can keep going past
+// individual failures.
+//
+// suppressFinal — when true (bulk mode), skip the per-theme final
+// "Done." line so the bulk caller can render its own summary.
+func installOne(slug string, suppressFinal bool) error {
+	t, err := manifest.LoadOne(slug)
+	if err != nil {
+		return fmt.Errorf("no manifest for %q (run `slatewave list` to see available themes)", slug)
+	}
+
+	ui.Header("Installing", t.Theme.Name)
+	opts := installer.Options{DryRun: installDryRun}
+	actOpts := activator.Options{DryRun: installDryRun}
+
+	if t.Install.Type != "marketplace" && t.Install.Type != "manual" {
+		done := ui.StepStart(fmt.Sprintf("Detecting %s", t.Theme.Slug))
+		if err := installer.Detect(t); err != nil {
+			done(err)
+			return err
+		}
+		done(nil)
+	}
+
+	done := ui.StepStart(installLabel(t))
+	rec, err := installer.Install(t, opts)
+	if err != nil {
+		done(err)
+		return err
+	}
+	done(nil)
+
+	if t.Install.Post != nil {
+		done := ui.StepStart(t.Install.Post.Description)
+		done(nil)
+	}
+
+	if t.Activate.Type != "" && t.Activate.Type != "none" {
+		done := ui.StepStart(activateLabel(t))
+		if err := activator.Activate(t, &rec, actOpts); err != nil {
+			done(err)
+			return err
+		}
+		done(nil)
+	}
+
+	if !installDryRun {
+		s, err := state.Load()
+		if err != nil {
+			return fmt.Errorf("load state: %w", err)
+		}
+		s.Put(rec)
+		if err := s.Save(); err != nil {
+			return fmt.Errorf("save state: %w", err)
+		}
+	}
+
+	if t.Install.Type == "manual" || len(t.Install.Instructions) > 0 {
+		fmt.Fprintln(ui.W)
+		for _, line := range t.Install.Instructions {
+			ui.MutedLn("  " + line)
+		}
+	}
+
+	if suppressFinal {
+		return nil
+	}
+	if installDryRun {
+		ui.Done("Dry run — no files written.")
+	} else {
+		ui.Done(doneMessage(t))
+	}
+	return nil
 }
 
 // installLabel produces the step label per install type.
