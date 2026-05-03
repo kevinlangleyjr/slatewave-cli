@@ -60,3 +60,37 @@ changelog:
       - '^docs:'
       - '^test:'
       - 'Apply go fmt'
+
+# Homebrew tap — each release auto-publishes a formula commit to
+# kevinlangleyjr/homebrew-slatewave. End users then run:
+#
+#   brew tap kevinlangleyjr/slatewave
+#   brew install slatewave
+#
+# Requires a HOMEBREW_TAP_GITHUB_TOKEN repo secret (classic PAT with
+# `repo` scope, or a fine-grained token scoped to the tap repo) so
+# goreleaser can push the formula commit. The default GITHUB_TOKEN
+# only has write access to slatewave-cli itself, not to the tap.
+#
+# Skip stable-release publishing on prereleases — the `auto` policy
+# lets goreleaser publish the formula only for non-prerelease tags
+# (so `v0.1.0-rc1` won't update the formula in the tap).
+brews:
+  - name: slatewave
+    homepage: "https://getslatewave.com"
+    description: "One palette across every tool you live in — install the Slatewave family from one CLI."
+    license: "WTFPL"
+    skip_upload: auto
+    repository:
+      owner: kevinlangleyjr
+      name: homebrew-slatewave
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: kevinlangleyjr
+      email: me@kevinlangleyjr.dev
+    commit_msg_template: "slatewave {{ .Tag }}"
+    install: |
+      bin.install "slatewave"
+    test: |
+      assert_match "slatewave version", shell_output("#{bin}/slatewave --version")
