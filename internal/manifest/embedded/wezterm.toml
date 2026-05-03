@@ -7,30 +7,52 @@ category = "terminal"
 # the .app bundle check for stock macOS Drag-to-/Applications installs.
 detect_command = "command -v wezterm || test -d /Applications/WezTerm.app"
 
+# Default to the "Slatewave Full" experience: palette + Hack Nerd Font
+# Mono + non-blinking block cursor + opaque, unblurred window. The
+# slatewave-full.lua module does `require 'slatewave'`, so we have to
+# drop slatewave.lua next to it as a dependency. Both files land in
+# ~/.config/wezterm/ where wezterm.lua's package path picks them up.
 [install]
 type = "curl"
-url = "https://raw.githubusercontent.com/kevinlangleyjr/wezterm-slatewave/main/slatewave.toml"
-dest = "$HOME/.config/wezterm/colors/slatewave.toml"
+# The font is the only out-of-band dependency — slatewave-full.lua sets
+# `config.font = wezterm.font 'Hack Nerd Font Mono'`, which silently
+# falls back to wezterm's default if the font isn't installed.
+instructions = [
+  "Install Hack Nerd Font Mono if you haven't — slatewave-full pins the font for icon glyph alignment.",
+  "  https://www.nerdfonts.com/font-downloads (pick the Mono variant)",
+  "Restart WezTerm to pick up the new theme + font.",
+]
+
+[[install.files]]
+url = "https://raw.githubusercontent.com/kevinlangleyjr/wezterm-slatewave/main/slatewave-full.lua"
+dest = "$HOME/.config/wezterm/slatewave-full.lua"
+[[install.files]]
+url = "https://raw.githubusercontent.com/kevinlangleyjr/wezterm-slatewave/main/slatewave.lua"
+dest = "$HOME/.config/wezterm/slatewave.lua"
 
 [activate]
 type = "shell-rc"
 files = ["~/.config/wezterm/wezterm.lua"]
-line = "config.color_scheme = 'Slatewave'"
+# apply_to_config layers the palette, font, cursor, and window opacity
+# onto an existing config table — strictly more than `color_scheme`
+# alone, which is why we ship the full experience as the default.
+line = "require('slatewave-full').apply_to_config(config)"
 # `return config` halts Lua, so anything appended below it is dead code.
 # Splice the activation line above that statement instead of at EOF.
 insert_before = "return config"
+# Lua uses `--` for comments; the default `#` would be a syntax error.
+comment_prefix = "--"
 # When wezterm.lua is missing or empty, append-only would leave a file
-# with just `config.color_scheme = 'Slatewave'` — invalid Lua because
-# `config` is undefined. Scaffold writes the full wrapper from the
-# wezterm-slatewave repo's README so the fresh install actually loads.
+# with just our require() call — invalid Lua because `config` is
+# undefined. Scaffold writes the full wrapper so the fresh install loads.
 scaffold = """
 local wezterm = require 'wezterm'
 local config  = wezterm.config_builder()
 
-config.color_scheme = 'Slatewave'
+require('slatewave-full').apply_to_config(config)
 
 return config
 """
 
 [verify]
-command = "test -f ~/.config/wezterm/colors/slatewave.toml"
+command = "test -f ~/.config/wezterm/slatewave-full.lua && test -f ~/.config/wezterm/slatewave.lua"
