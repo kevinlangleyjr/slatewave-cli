@@ -1,0 +1,22 @@
+[theme]
+slug = "markedit"
+name = "Slatewave for MarkEdit"
+category = "notes"
+detect_command = "test -d /Applications/MarkEdit.app"
+
+[install]
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/markedit-slatewave.git"
+clone_dest = "$HOME/.local/share/markedit-slatewave"
+# yarn build drops the bundle into MarkEdit's scripts container dir.
+# Requires Node + Yarn — manifest expects them present.
+
+[install.post]
+description = "Building theme bundle"
+command = "cd $HOME/.local/share/markedit-slatewave && yarn install && yarn build"
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -f \"$HOME/Library/Containers/app.cyan.markedit/Data/Documents/scripts/markedit-theme-slatewave.js\""
