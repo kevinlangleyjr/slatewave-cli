@@ -1,0 +1,27 @@
+[theme]
+slug = "xcode"
+name = "Slatewave for Xcode"
+category = "editor"
+# Xcode doesn't ship a CLI tool we can rely on (xcrun belongs to the
+# Command Line Tools, which can be installed without the full IDE);
+# check for the app bundle instead, mirroring the iterm2 pattern.
+detect_command = "test -d /Applications/Xcode.app"
+
+[install]
+# Drop the .xccolortheme directly into Xcode's user themes dir. Xcode
+# scans this directory at launch — no separate activation step, but
+# the user has to restart Xcode (or relaunch) before the theme appears
+# under Settings → Themes → Custom.
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/xcode-slatewave/main/Slatewave.xccolortheme"
+dest = "$HOME/Library/Developer/Xcode/UserData/FontAndColorThemes/Slatewave.xccolortheme"
+instructions = [
+  "Restart Xcode if it's currently running",
+  "Settings → Themes → Slatewave (under Custom in the sidebar)",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -f $HOME/Library/Developer/Xcode/UserData/FontAndColorThemes/Slatewave.xccolortheme"
