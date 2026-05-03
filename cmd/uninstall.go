@@ -88,9 +88,26 @@ func uninstallOne(slug string) error {
 	if uninstallDryRun {
 		ui.Done("Dry run — nothing reverted.")
 	} else {
-		ui.Done("Reverted.")
+		ui.Done(uninstallDoneMessage(t))
 	}
 	return nil
+}
+
+// uninstallDoneMessage adds tool-specific guidance after the "Reverted." line for tools that cache config in memory and won't show the change until they're relaunched. The default ("Reverted.") is fine for tools that re-read config per-invocation (bat, delta, git diff) — the next run picks up the empty state automatically.
+func uninstallDoneMessage(t manifest.Theme) string {
+	switch t.Theme.Slug {
+	case "ghostty", "alacritty", "wezterm", "iterm2", "kitty":
+		return fmt.Sprintf("Reverted. Quit and relaunch %s to see your original colors — running terminals keep the loaded theme in memory.", t.Theme.Name[len("Slatewave for "):])
+	case "btop":
+		return "Reverted. Quit and relaunch `btop` if it's open."
+	case "oh-my-posh", "starship":
+		return "Reverted. Restart your shell or `source` your rc file."
+	case "obsidian", "logseq", "markedit":
+		return fmt.Sprintf("Reverted. Restart %s if it's open — the theme is loaded once at launch.", t.Theme.Name[len("Slatewave for "):])
+	case "vscode":
+		return "Reverted. VSCode picks up the change immediately."
+	}
+	return "Reverted."
 }
 
 // uninstallBulk iterates installed slugs (filtered by category if set), running uninstallOne for each. Mirrors updateBulk's shape — individual failures are reported and the run continues so one broken reversal doesn't strand the rest installed.
