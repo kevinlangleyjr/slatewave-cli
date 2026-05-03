@@ -6,13 +6,13 @@ detect_command = "oh-my-posh --version"
 
 [install]
 type = "curl"
-url = "https://raw.githubusercontent.com/kevinlangleyjr/slatewave-omp/main/slatewave.omp.json"
-dest = "$HOME/.config/oh-my-posh/slatewave.omp.json"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/slatewave-omp/main/slatewave.omp.yml"
+dest = "$HOME/.config/oh-my-posh/slatewave.omp.yml"
 
 [activate]
 type = "shell-rc"
 files = ["~/.zshrc", "~/.bashrc"]
-line = "eval \"$(oh-my-posh init zsh --config ~/.config/oh-my-posh/slatewave.omp.json)\""
+line = "eval \"$(oh-my-posh init zsh --config ~/.config/oh-my-posh/slatewave.omp.yml)\""
 
 [verify]
-command = "test -f ~/.config/oh-my-posh/slatewave.omp.json"
+command = "test -f ~/.config/oh-my-posh/slatewave.omp.yml"
