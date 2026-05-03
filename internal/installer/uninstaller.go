@@ -74,7 +74,15 @@ func Uninstall(rec state.Record, t manifest.Theme, opts Options) error {
 			break
 		}
 		cmd := exec.Command("code", "--uninstall-extension", t.Install.Identifier)
-		if out, err := cmd.CombinedOutput(); err != nil {
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			// If the extension was already removed externally (via VSCode's
+			// own UI, for example), `code --uninstall-extension` errors with
+			// "Extension '<id>' is not installed." Treat that as success so
+			// `slatewave uninstall` cleanly reconciles state with reality.
+			if strings.Contains(string(out), "is not installed") {
+				return nil
+			}
 			return fmt.Errorf("code --uninstall-extension %s: %w\n%s", t.Install.Identifier, err, out)
 		}
 	}
