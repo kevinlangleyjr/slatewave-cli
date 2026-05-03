@@ -2,7 +2,11 @@
 slug = "slack"
 name = "Slatewave for Slack"
 category = "chat"
-detect_command = "test -d /Applications/Slack.app"
+# Cover the three common install shapes:
+#   - macOS .app           — /Applications/Slack.app
+#   - Linux deb / snap     — `slack` on $PATH
+#   - Linux Flatpak        — com.slack.Slack in `flatpak list`
+detect_command = "command -v slack || test -d /Applications/Slack.app || flatpak list 2>/dev/null | grep -q com.slack.Slack"
 
 [install]
 # Slack's only theme-import affordance is a pasted comma-separated hex
