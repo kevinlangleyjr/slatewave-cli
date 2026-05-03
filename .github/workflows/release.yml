@@ -1,0 +1,37 @@
+name: release
+
+# Fires when a tag matching v* is pushed (e.g., v0.0.1). goreleaser then
+# cross-compiles, archives, checksums, and attaches the artifacts to the
+# corresponding GitHub release. Tag → release in a single push.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # goreleaser needs this to create the release + upload assets
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history is required for goreleaser's changelog
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Run goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
