@@ -11,8 +11,18 @@ import (
 )
 
 var statusCmd = &cobra.Command{
-	Use:               "status [theme]",
-	Short:             "Show what's installed (and where the files live)",
+	Use:   "status [theme]",
+	Short: "Show what's installed (and where the files live)",
+	Long: `Print the install footprint for one theme or every installed theme:
+
+  slatewave status              # every installed theme
+  slatewave status bat          # one theme
+
+Per theme: install timestamp, install + activate types, every file the
+CLI created, every config line the CLI appended, every backup the CLI
+made before editing. This is what ` + "`slatewave uninstall`" + ` would reverse.
+
+Read-only — status never touches state, install, or uninstall.`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validInstalledArgs,
 	RunE: func(_ *cobra.Command, args []string) error {
