@@ -12,6 +12,10 @@ The family installer for the [Slatewave](https://getslatewave.com) themes — on
 
 > _Slate below, teal above._
 
+[![CI](https://github.com/kevinlangleyjr/slatewave-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/kevinlangleyjr/slatewave-cli/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/kevinlangleyjr/slatewave-cli?label=release)](https://github.com/kevinlangleyjr/slatewave-cli/releases/latest)
+[![License: WTFPL](https://img.shields.io/badge/license-WTFPL-blue.svg)](LICENSE)
+
 </div>
 
 ---
