@@ -38,9 +38,10 @@ type Fix struct {
 	Theme manifest.Theme
 }
 
-// FixOptions configures a TUI fix run. DryRun threads through to installer / state writes so users can preview without disk side effects.
+// FixOptions configures a TUI fix run. DryRun threads through to installer / state writes so users can preview without disk side effects. Title overrides the dashboard header — defaults to "Fixing" but `slatewave update --interactive` passes "Updating" since the same pipeline backs both flows but the verb the user expects differs.
 type FixOptions struct {
 	DryRun bool
+	Title  string
 }
 
 type fixRowState int
@@ -74,10 +75,11 @@ type fixModel struct {
 	rows    []*fixRow
 	rowMap  map[string]*fixRow
 	spinner spinner.Model
+	title   string
 	done    bool
 }
 
-func newFixModel(fixes []Fix) fixModel {
+func newFixModel(fixes []Fix, title string) fixModel {
 	rows := make([]*fixRow, len(fixes))
 	rowMap := make(map[string]*fixRow, len(fixes))
 	for i, f := range fixes {
@@ -93,7 +95,7 @@ func newFixModel(fixes []Fix) fixModel {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(ui.Teal300)
-	return fixModel{rows: rows, rowMap: rowMap, spinner: sp}
+	return fixModel{rows: rows, rowMap: rowMap, spinner: sp, title: title}
 }
 
 func (m fixModel) Init() tea.Cmd { return m.spinner.Tick }
@@ -124,7 +126,7 @@ func (m fixModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m fixModel) View() string {
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(ui.Slate200).Render("Fixing"))
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(ui.Slate200).Render(m.title))
 	b.WriteString("\n\n")
 	for _, row := range m.rows {
 		b.WriteString(m.renderRow(row))
@@ -245,7 +247,11 @@ func RunFix(fixes []Fix, opts FixOptions) error {
 	if len(fixes) == 0 {
 		return nil
 	}
-	m := newFixModel(fixes)
+	title := opts.Title
+	if title == "" {
+		title = "Fixing"
+	}
+	m := newFixModel(fixes, title)
 	p := tea.NewProgram(m)
 
 	go func() {
