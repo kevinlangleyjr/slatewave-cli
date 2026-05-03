@@ -45,8 +45,24 @@ func Activate(t manifest.Theme, rec *state.Record, opts Options) error {
 
 // ----- type: ini-key -----
 
-// doIniKey edits a single Key=Value line in an INI-ish config (e.g.
-// btop.conf's `color_theme = "slatewave"`). Backs the file up first.
+// doIniKey ensures `Key = Value` lands in an INI-ish config, handling
+// each of the four shapes the file might be in:
+//
+//  1. file is missing entirely (e.g. ~/.config/ghostty/config before
+//     the user has launched ghostty for the first time): create the
+//     parent dir, write a fresh file with our line. Record the file
+//     as a CreatedPath so uninstall removes it.
+//
+//  2. file exists but doesn't contain our key (a fresh config the user
+//     hasn't set this option in yet): append `Key = Value` to the end
+//     under a `# slatewave` marker. Record a Backup so uninstall can
+//     restore.
+//
+//  3. file exists with our key set to a different value: replace the
+//     value. Backup as in (2).
+//
+//  4. file exists with our key already set to our value: idempotent
+//     no-op, no backup.
 func doIniKey(t manifest.Theme, rec *state.Record, opts Options) error {
 	if t.Activate.File == "" || t.Activate.Key == "" {
 		return fmt.Errorf("ini-key activate for %q missing file or key", t.Theme.Slug)
@@ -55,27 +71,52 @@ func doIniKey(t manifest.Theme, rec *state.Record, opts Options) error {
 	if err != nil {
 		return err
 	}
+
 	data, err := os.ReadFile(file)
-	if err != nil {
+	fileExists := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("read %s: %w", file, err)
 	}
+
 	keyRe := regexp.MustCompile(`(?m)^(` + regexp.QuoteMeta(t.Activate.Key) + `\s*=).*$`)
-	desired := fmt.Sprintf("%s %s", t.Activate.Key+" =", quoteIfNeeded(t.Activate.Value))
-	if !keyRe.Match(data) {
-		return fmt.Errorf("key %q not found in %s — manifest may be stale", t.Activate.Key, file)
+	desiredLine := fmt.Sprintf("%s %s", t.Activate.Key+" =", quoteIfNeeded(t.Activate.Value))
+
+	var updated string
+	switch {
+	case !fileExists:
+		// Case 1: create file with just our line.
+		updated = "# slatewave\n" + desiredLine + "\n"
+	case keyRe.Match(data):
+		// Cases 3 / 4: key exists — replace value (or no-op).
+		updated = keyRe.ReplaceAllString(string(data), desiredLine)
+		if string(data) == updated {
+			return nil // already at desired value
+		}
+	default:
+		// Case 2: file exists but no such key — append.
+		prefix := ""
+		if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
+			prefix = "\n"
+		}
+		updated = string(data) + prefix + "\n# slatewave\n" + desiredLine + "\n"
 	}
-	updated := keyRe.ReplaceAllString(string(data), desired)
-	if string(data) == updated {
-		return nil // already activated; idempotent no-op
-	}
+
 	if opts.DryRun {
 		return nil
 	}
-	backup, err := backupFile(file)
-	if err != nil {
-		return err
+
+	if !fileExists {
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			return fmt.Errorf("create parent dir: %w", err)
+		}
+		rec.CreatedPaths = append(rec.CreatedPaths, file)
+	} else {
+		backup, err := backupFile(file)
+		if err != nil {
+			return err
+		}
+		rec.Backups = append(rec.Backups, state.Backup{Original: file, Path: backup})
 	}
-	rec.Backups = append(rec.Backups, state.Backup{Original: file, Path: backup})
 	return os.WriteFile(file, []byte(updated), 0o644)
 }
 
