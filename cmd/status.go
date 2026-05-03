@@ -23,7 +23,8 @@ var statusCmd = &cobra.Command{
 		if len(args) == 0 {
 			return statusAll(s)
 		}
-		return statusOne(s, args[0])
+		statusOne(s, args[0])
+		return nil
 	},
 }
 
@@ -38,11 +39,14 @@ func statusAll(s *state.Store) error {
 	return nil
 }
 
-func statusOne(s *state.Store, slug string) error {
+// statusOne prints the install footprint for one slug. It never errors
+// (missing-slug case is reported via ui.Errorf and short-circuits) so
+// the signature is void — callers don't need an error-check ceremony.
+func statusOne(s *state.Store, slug string) {
 	rec, ok := s.Get(slug)
 	if !ok {
 		ui.Errorf("%s is not installed.", slug)
-		return nil
+		return
 	}
 	name := slug
 	if t, err := manifest.LoadOne(slug); err == nil {
@@ -68,7 +72,6 @@ func statusOne(s *state.Store, slug string) error {
 		}
 	}
 	fmt.Fprintln(ui.W)
-	return nil
 }
 
 func fallback(s, def string) string {
