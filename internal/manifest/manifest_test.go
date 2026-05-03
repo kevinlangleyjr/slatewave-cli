@@ -40,14 +40,35 @@ func TestEmbeddedManifests_AllParse(t *testing.T) {
 	}
 }
 
-// TestEmbeddedManifests_KnownSlugs locks the v0.1 manifest set so we
-// notice if one is silently dropped from the embed.
+// TestEmbeddedManifests_KnownSlugs locks the full shipping manifest set
+// so we notice if one is silently dropped from the embed. Update both
+// this list AND the website's getslatewave/src/content/themes/ in lockstep
+// when a new theme ships, so the two sources can't drift out of agreement.
 func TestEmbeddedManifests_KnownSlugs(t *testing.T) {
 	all, err := LoadAll()
 	if err != nil {
 		t.Fatalf("LoadAll: %v", err)
 	}
-	want := []string{"bat", "btop", "delta", "oh-my-posh", "vscode"}
+	want := []string{
+		// editors
+		"vscode", "jetbrains", "sublime-text", "zed", "neovim", "helix",
+		// prompts
+		"oh-my-posh", "starship",
+		// terminal emulators
+		"ghostty", "alacritty", "iterm2", "wezterm", "windows-terminal",
+		// terminal CLI tools
+		"bat", "delta", "lsd",
+		// multiplexer
+		"tmux",
+		// dashboard
+		"btop",
+		// notes
+		"obsidian", "logseq", "markedit",
+		// launchers
+		"alfred", "raycast",
+		// chat
+		"slack",
+	}
 	got := map[string]bool{}
 	for _, th := range all {
 		got[th.Theme.Slug] = true
@@ -56,6 +77,11 @@ func TestEmbeddedManifests_KnownSlugs(t *testing.T) {
 		if !got[slug] {
 			t.Errorf("expected manifest for %q in embedded set", slug)
 		}
+	}
+	// Count check — catches an extra manifest landing without an entry
+	// in `want`, which means a new theme shipped without updating the lock.
+	if len(all) != len(want) {
+		t.Errorf("manifest count drift: got %d manifests, want %d (extra/missing in embed?)", len(all), len(want))
 	}
 }
 
@@ -94,6 +120,121 @@ func TestEmbeddedManifests_ActivateTypesAreKnown(t *testing.T) {
 	for _, th := range all {
 		if !known[th.Activate.Type] {
 			t.Errorf("%s declares unknown activate.type %q", th.Theme.Slug, th.Activate.Type)
+		}
+	}
+}
+
+// TestEmbeddedManifests_FieldsByInstallType validates that each manifest
+// has the fields its install type actually requires. Catches a drifted
+// manifest like a `type = "curl"` block with empty `url` before the
+// installer would surface it as a runtime error mid-install.
+func TestEmbeddedManifests_FieldsByInstallType(t *testing.T) {
+	all, _ := LoadAll()
+	for _, th := range all {
+		slug := th.Theme.Slug
+		switch th.Install.Type {
+		case "curl", "gui-import":
+			if th.Install.URL == "" {
+				t.Errorf("%s: %q install missing install.url", slug, th.Install.Type)
+			}
+			if th.Install.Dest == "" {
+				t.Errorf("%s: %q install missing install.dest", slug, th.Install.Type)
+			}
+		case "clone":
+			if th.Install.Repo == "" {
+				t.Errorf("%s: clone install missing install.repo", slug)
+			}
+			if th.Install.CloneDest == "" {
+				t.Errorf("%s: clone install missing install.clone_dest", slug)
+			}
+		case "vscode-ext":
+			if th.Install.Identifier == "" {
+				t.Errorf("%s: vscode-ext install missing install.identifier", slug)
+			}
+		case "marketplace":
+			if th.Install.URL == "" {
+				t.Errorf("%s: marketplace install missing install.url", slug)
+			}
+		case "manual":
+			if len(th.Install.Instructions) == 0 {
+				t.Errorf("%s: manual install missing install.instructions (the whole point of manual is to print them)", slug)
+			}
+		}
+	}
+}
+
+// TestEmbeddedManifests_FieldsByActivateType — same shape for the
+// activate block. An activate type without its required fields would
+// crash the activator at runtime; this catches it at build/test time.
+func TestEmbeddedManifests_FieldsByActivateType(t *testing.T) {
+	all, _ := LoadAll()
+	for _, th := range all {
+		slug := th.Theme.Slug
+		switch th.Activate.Type {
+		case "ini-key":
+			if th.Activate.File == "" || th.Activate.Key == "" || th.Activate.Value == "" {
+				t.Errorf("%s: ini-key activate missing one of file/key/value", slug)
+			}
+		case "shell-rc":
+			if len(th.Activate.Files) == 0 || th.Activate.Line == "" {
+				t.Errorf("%s: shell-rc activate missing files/line", slug)
+			}
+		case "gitconfig-include":
+			if th.Activate.IncludePath == "" {
+				t.Errorf("%s: gitconfig-include activate missing include_path", slug)
+			}
+		case "toml-import":
+			if th.Activate.TOMLPath == "" || th.Activate.Import == "" {
+				t.Errorf("%s: toml-import activate missing toml_path/import", slug)
+			}
+		}
+	}
+}
+
+// TestEmbeddedManifests_HaveDetectCommand requires every manifest to
+// declare a detect_command. Detection is the safety net that makes
+// `slatewave install bat` fail cleanly with "bat not detected" when
+// the underlying tool isn't installed — without it, the curl + activate
+// runs and leaves the user with a half-installed theme for a tool
+// they don't have.
+func TestEmbeddedManifests_HaveDetectCommand(t *testing.T) {
+	all, _ := LoadAll()
+	for _, th := range all {
+		if th.Theme.DetectCommand == "" {
+			t.Errorf("%s: missing detect_command", th.Theme.Slug)
+		}
+	}
+}
+
+// TestEmbeddedManifests_SlugMatchesFilename keeps the manifest filename
+// in sync with theme.slug so `LoadOne(slug)` reliably finds it and the
+// embed walker doesn't surprise us with mismatched IDs.
+func TestEmbeddedManifests_SlugMatchesFilename(t *testing.T) {
+	all, _ := LoadAll()
+	// Build an inverse map filename → slug by walking the embed FS.
+	entries, err := EmbeddedManifests.ReadDir("embedded")
+	if err != nil {
+		t.Fatal(err)
+	}
+	slugByFile := map[string]string{}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		base := strings.TrimSuffix(e.Name(), ".toml")
+		slugByFile[base] = ""
+	}
+	for _, th := range all {
+		if _, ok := slugByFile[th.Theme.Slug]; !ok {
+			t.Errorf("%s: no embedded file matches slug (expected embedded/%s.toml)", th.Theme.Slug, th.Theme.Slug)
+		} else {
+			slugByFile[th.Theme.Slug] = th.Theme.Slug
+		}
+	}
+	// Catch the reverse case — a file with a slug that doesn't map back.
+	for file, slug := range slugByFile {
+		if slug == "" {
+			t.Errorf("embedded/%s.toml has no manifest claiming slug %q", file, file)
 		}
 	}
 }
