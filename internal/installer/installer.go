@@ -66,43 +66,79 @@ func Detect(t manifest.Theme) error {
 
 // ----- type: curl -----
 
-func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
-	dest, err := expandPath(t.Install.Dest)
-	if err != nil {
-		return rec, err
+// curlFiles returns the (url, dest) pairs to fetch. When Install.Files
+// is set, that's the source of truth and URL/Dest must be empty (catches
+// manifest authoring mistakes early). Otherwise we synthesize a single-
+// entry slice from URL/Dest so the rest of doCurl can iterate uniformly.
+func curlFiles(t manifest.Theme) ([]manifest.InstallFile, error) {
+	if len(t.Install.Files) > 0 {
+		if t.Install.URL != "" || t.Install.Dest != "" {
+			return nil, fmt.Errorf("curl install for %q sets both files and url/dest — pick one", t.Theme.Slug)
+		}
+		for i, f := range t.Install.Files {
+			if f.URL == "" || f.Dest == "" {
+				return nil, fmt.Errorf("curl install for %q: files[%d] missing url or dest", t.Theme.Slug, i)
+			}
+		}
+		return t.Install.Files, nil
 	}
 	if t.Install.URL == "" {
-		return rec, fmt.Errorf("curl install for %q has no install.url", t.Theme.Slug)
+		return nil, fmt.Errorf("curl install for %q has no install.url", t.Theme.Slug)
+	}
+	return []manifest.InstallFile{{URL: t.Install.URL, Dest: t.Install.Dest}}, nil
+}
+
+func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
+	files, err := curlFiles(t)
+	if err != nil {
+		return rec, err
 	}
 	if opts.DryRun {
 		return rec, nil
 	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return rec, fmt.Errorf("create dest dir: %w", err)
+	for _, f := range files {
+		dest, err := expandPath(f.Dest)
+		if err != nil {
+			return rec, err
+		}
+		if err := fetchToFile(f.URL, dest); err != nil {
+			return rec, err
+		}
+		rec.CreatedPaths = append(rec.CreatedPaths, dest)
 	}
-	resp, err := http.Get(t.Install.URL)
-	if err != nil {
-		return rec, fmt.Errorf("fetch %s: %w", t.Install.URL, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return rec, fmt.Errorf("fetch %s: %s", t.Install.URL, resp.Status)
-	}
-	f, err := os.Create(dest)
-	if err != nil {
-		return rec, fmt.Errorf("write %s: %w", dest, err)
-	}
-	defer func() { _ = f.Close() }()
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		return rec, fmt.Errorf("write %s: %w", dest, err)
-	}
-	rec.CreatedPaths = append(rec.CreatedPaths, dest)
 	if t.Install.Post != nil {
 		if err := exec.Command("sh", "-c", t.Install.Post.Command).Run(); err != nil {
 			return rec, fmt.Errorf("post-hook %q: %w", t.Install.Post.Command, err)
 		}
 	}
 	return rec, nil
+}
+
+// fetchToFile downloads url to dest, creating intermediate dirs and
+// truncating any existing file at the destination. Returns wrapped
+// errors keyed on the URL/path so multi-file installs surface which
+// asset failed.
+func fetchToFile(url, dest string) error {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return fmt.Errorf("create dest dir: %w", err)
+	}
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("fetch %s: %w", url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("fetch %s: %s", url, resp.Status)
+	}
+	f, err := os.Create(dest)
+	if err != nil {
+		return fmt.Errorf("write %s: %w", dest, err)
+	}
+	defer func() { _ = f.Close() }()
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		return fmt.Errorf("write %s: %w", dest, err)
+	}
+	return nil
 }
 
 // ----- type: clone -----

@@ -161,6 +161,128 @@ func TestDoCurl_404SurfacesAsError(t *testing.T) {
 	}
 }
 
+// ----- multi-file curl install -----
+
+// Multi-file curl fetches every entry in install.files in order, records
+// each dest as a CreatedPath, and triggers the post-hook once at the end.
+// Wezterm's slatewave-full + slatewave.lua dependency is the canonical
+// case.
+func TestDoCurl_MultiFile_FetchesAllAndRecordsCreatedPaths(t *testing.T) {
+	bodies := map[string]string{
+		"/full.lua": "-- slatewave-full payload\n",
+		"/lib.lua":  "-- slatewave lib payload\n",
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, ok := bodies[r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	fullDest := filepath.Join(dir, "slatewave-full.lua")
+	libDest := filepath.Join(dir, "slatewave.lua")
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "wezterm"},
+		Install: manifest.Install{
+			Type: "curl",
+			Files: []manifest.InstallFile{
+				{URL: srv.URL + "/full.lua", Dest: fullDest},
+				{URL: srv.URL + "/lib.lua", Dest: libDest},
+			},
+		},
+	}
+
+	rec, err := Install(th, Options{})
+	if err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+
+	if got, _ := os.ReadFile(fullDest); string(got) != bodies["/full.lua"] {
+		t.Errorf("full.lua contents = %q, want %q", got, bodies["/full.lua"])
+	}
+	if got, _ := os.ReadFile(libDest); string(got) != bodies["/lib.lua"] {
+		t.Errorf("slatewave.lua contents = %q, want %q", got, bodies["/lib.lua"])
+	}
+	// Both dests must be in CreatedPaths so uninstall removes them.
+	if len(rec.CreatedPaths) != 2 {
+		t.Fatalf("CreatedPaths = %v, want 2 entries", rec.CreatedPaths)
+	}
+	if rec.CreatedPaths[0] != fullDest || rec.CreatedPaths[1] != libDest {
+		t.Errorf("CreatedPaths order/contents wrong: %v", rec.CreatedPaths)
+	}
+}
+
+// Mixing url/dest with files is a manifest-authoring mistake — surface
+// it as an error rather than silently picking one branch.
+func TestDoCurl_MultiFile_RejectsMixedShape(t *testing.T) {
+	dir := t.TempDir()
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "wezterm"},
+		Install: manifest.Install{
+			Type:  "curl",
+			URL:   "https://example.com/x",
+			Dest:  filepath.Join(dir, "x"),
+			Files: []manifest.InstallFile{{URL: "https://example.com/y", Dest: filepath.Join(dir, "y")}},
+		},
+	}
+	_, err := Install(th, Options{})
+	if err == nil || !strings.Contains(err.Error(), "pick one") {
+		t.Errorf("mixed shape: err = %v, want `pick one`", err)
+	}
+}
+
+// A files entry missing url or dest must error before any fetch happens
+// — no half-installed state.
+func TestDoCurl_MultiFile_RejectsIncompleteEntry(t *testing.T) {
+	dir := t.TempDir()
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "wezterm"},
+		Install: manifest.Install{
+			Type: "curl",
+			Files: []manifest.InstallFile{
+				{URL: "https://example.com/x", Dest: filepath.Join(dir, "x")},
+				{URL: "", Dest: filepath.Join(dir, "y")}, // bad entry
+			},
+		},
+	}
+	_, err := Install(th, Options{})
+	if err == nil || !strings.Contains(err.Error(), "files[1]") {
+		t.Errorf("incomplete entry: err = %v, want `files[1]`", err)
+	}
+}
+
+// Dry-run on a multi-file install must not contact the network or write
+// any files (the test server fails the run if it gets a request).
+func TestDoCurl_MultiFile_DryRun(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		t.Error("dry-run should not have fetched")
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "wezterm"},
+		Install: manifest.Install{
+			Type: "curl",
+			Files: []manifest.InstallFile{
+				{URL: srv.URL + "/x", Dest: filepath.Join(dir, "x")},
+				{URL: srv.URL + "/y", Dest: filepath.Join(dir, "y")},
+			},
+		},
+	}
+	rec, err := Install(th, Options{DryRun: true})
+	if err != nil {
+		t.Fatalf("dry-run Install: %v", err)
+	}
+	if len(rec.CreatedPaths) != 0 {
+		t.Errorf("dry-run recorded CreatedPaths = %v, want none", rec.CreatedPaths)
+	}
+}
+
 func TestDoCurl_PostHookRuns(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("payload"))

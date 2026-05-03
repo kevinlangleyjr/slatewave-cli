@@ -81,7 +81,7 @@ export BAT_THEME=Slatewave
 		t.Fatal(err)
 	}
 
-	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", Options{}); err != nil {
+	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", "# slatewave", Options{}); err != nil {
 		t.Fatalf("removeShellRCLine: %v", err)
 	}
 	got, _ := os.ReadFile(rc)
@@ -117,7 +117,7 @@ export BAT_THEME=Slatewave
 	if err := os.WriteFile(rc, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", Options{}); err != nil {
+	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", "# slatewave", Options{}); err != nil {
 		t.Fatalf("removeShellRCLine: %v", err)
 	}
 	got, _ := os.ReadFile(rc)
@@ -142,7 +142,7 @@ func TestRemoveShellRCLine_NoOpIfLineAbsent(t *testing.T) {
 	if err := os.WriteFile(rc, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", Options{}); err != nil {
+	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", "# slatewave", Options{}); err != nil {
 		t.Fatalf("removeShellRCLine on absent line: %v", err)
 	}
 	got, _ := os.ReadFile(rc)
@@ -155,8 +155,70 @@ func TestRemoveShellRCLine_NoOpIfFileMissing(t *testing.T) {
 	rc := filepath.Join(t.TempDir(), "does-not-exist")
 	// Should NOT error — the rc file might have been deleted by the
 	// user between install and uninstall.
-	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", Options{}); err != nil {
+	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", "# slatewave", Options{}); err != nil {
 		t.Errorf("expected no error on missing file: %v", err)
+	}
+}
+
+// Lua targets like wezterm.lua use `-- slatewave` as the marker. The
+// uninstaller must drop that adjacent marker just like it drops `# slatewave`.
+func TestRemoveShellRCLine_RemovesLuaMarker(t *testing.T) {
+	rc := filepath.Join(t.TempDir(), "wezterm.lua")
+	body := `local wezterm = require 'wezterm'
+local config = wezterm.config_builder()
+
+-- slatewave
+require('slatewave-full').apply_to_config(config)
+
+return config
+`
+	if err := os.WriteFile(rc, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeShellRCLine(rc, "require('slatewave-full').apply_to_config(config)", "-- slatewave", Options{}); err != nil {
+		t.Fatalf("removeShellRCLine: %v", err)
+	}
+	got, _ := os.ReadFile(rc)
+	gotStr := string(got)
+	if strings.Contains(gotStr, "slatewave-full") {
+		t.Errorf("activation line still present:\n%s", gotStr)
+	}
+	if strings.Contains(gotStr, "-- slatewave") {
+		t.Errorf("`-- slatewave` marker still present (must drop with the line):\n%s", gotStr)
+	}
+	// User content must survive intact.
+	for _, want := range []string{"local wezterm = require 'wezterm'", "wezterm.config_builder()", "return config"} {
+		if !strings.Contains(gotStr, want) {
+			t.Errorf("user line %q stripped:\n%s", want, gotStr)
+		}
+	}
+}
+
+// Mixed-style file (a `# slatewave` block AND a `-- slatewave` block,
+// hypothetically left by sequential installs of two different themes
+// against the same file): each uninstall removes only its own pair.
+func TestRemoveShellRCLine_PreservesUnrelatedLuaMarker(t *testing.T) {
+	rc := filepath.Join(t.TempDir(), "mixed.conf")
+	body := `# slatewave
+export BAT_THEME=Slatewave
+
+-- slatewave
+local x = 1
+`
+	if err := os.WriteFile(rc, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Only remove the BAT_THEME line — the Lua block must survive.
+	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", "# slatewave", Options{}); err != nil {
+		t.Fatalf("removeShellRCLine: %v", err)
+	}
+	got, _ := os.ReadFile(rc)
+	gotStr := string(got)
+	if strings.Contains(gotStr, "BAT_THEME") {
+		t.Errorf("target line not removed:\n%s", gotStr)
+	}
+	if !strings.Contains(gotStr, "-- slatewave\nlocal x = 1\n") {
+		t.Errorf("unrelated `-- slatewave` block was eaten:\n%s", gotStr)
 	}
 }
 
@@ -166,7 +228,7 @@ func TestRemoveShellRCLine_DryRunMakesNoChanges(t *testing.T) {
 	if err := os.WriteFile(rc, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", Options{DryRun: true}); err != nil {
+	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", "# slatewave", Options{DryRun: true}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := os.ReadFile(rc)
