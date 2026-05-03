@@ -26,7 +26,7 @@ func TestFixModel_ProgressUpdatesRowState(t *testing.T) {
 	m := newFixModel([]Fix{
 		{Slug: "bat", Name: "Slatewave for bat", Kind: FixUpdate},
 		{Slug: "btop", Name: "Slatewave for btop", Kind: FixDropOrphan},
-	})
+	}, "Fixing")
 	updated, _ := m.Update(fixProgressMsg{slug: "bat", state: fixRunning, step: "refreshing"})
 	m = updated.(fixModel)
 	if m.rowMap["bat"].state != fixRunning {
@@ -38,7 +38,7 @@ func TestFixModel_ProgressUpdatesRowState(t *testing.T) {
 }
 
 func TestFixModel_FailureCarriesError(t *testing.T) {
-	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}})
+	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}}, "Fixing")
 	wantErr := errors.New("post-hook bombed")
 	updated, _ := m.Update(fixProgressMsg{slug: "bat", state: fixFailed, err: wantErr})
 	m = updated.(fixModel)
@@ -48,7 +48,7 @@ func TestFixModel_FailureCarriesError(t *testing.T) {
 }
 
 func TestFixModel_UnknownSlugIsNoOp(t *testing.T) {
-	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}})
+	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}}, "Fixing")
 	updated, _ := m.Update(fixProgressMsg{slug: "ghost", state: fixDone})
 	m = updated.(fixModel)
 	if m.rowMap["bat"].state != fixPending {
@@ -57,7 +57,7 @@ func TestFixModel_UnknownSlugIsNoOp(t *testing.T) {
 }
 
 func TestFixModel_CompleteMsgQuits(t *testing.T) {
-	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}})
+	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}}, "Fixing")
 	updated, cmd := m.Update(fixCompleteMsg{})
 	m = updated.(fixModel)
 	if !m.done {
@@ -69,7 +69,7 @@ func TestFixModel_CompleteMsgQuits(t *testing.T) {
 }
 
 func TestFixModel_CtrlCQuits(t *testing.T) {
-	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}})
+	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}}, "Fixing")
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
 		t.Error("ctrl-c should quit")
@@ -80,7 +80,7 @@ func TestFixModel_ViewRendersRows(t *testing.T) {
 	m := newFixModel([]Fix{
 		{Slug: "bat", Name: "Slatewave for bat", Kind: FixUpdate},
 		{Slug: "old", Name: "Slatewave for old", Kind: FixDropOrphan},
-	})
+	}, "Fixing")
 	out := m.View()
 	if !strings.Contains(out, "Fixing") {
 		t.Error("view missing Fixing header")
@@ -100,7 +100,7 @@ func TestFixModel_DoneViewShowsSummary(t *testing.T) {
 	m := newFixModel([]Fix{
 		{Slug: "a", Name: "a", Kind: FixUpdate},
 		{Slug: "b", Name: "b", Kind: FixUpdate},
-	})
+	}, "Fixing")
 	updated, _ := m.Update(fixProgressMsg{slug: "a", state: fixDone})
 	m = updated.(fixModel)
 	updated, _ = m.Update(fixProgressMsg{slug: "b", state: fixFailed, err: errors.New("x")})
@@ -120,5 +120,20 @@ func TestFixModel_DoneViewShowsSummary(t *testing.T) {
 func TestRunFix_EmptySliceReturnsNil(t *testing.T) {
 	if err := RunFix(nil, FixOptions{}); err != nil {
 		t.Errorf("RunFix(nil) = %v, want nil", err)
+	}
+}
+
+func TestFixModel_CustomTitleAppearsInView(t *testing.T) {
+	// `slatewave update --interactive` reuses the fix dashboard but passes
+	// "Updating" via FixOptions.Title. Pin that the title actually flows
+	// into the rendered View — otherwise update would silently say
+	// "Fixing" which is the wrong verb for a refresh.
+	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}}, "Updating")
+	out := m.View()
+	if !strings.Contains(out, "Updating") {
+		t.Errorf("custom title not in View: %q", out)
+	}
+	if strings.Contains(out, "Fixing") {
+		t.Error("default title leaked through when custom title was set")
 	}
 }
