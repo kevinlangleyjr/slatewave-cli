@@ -2,7 +2,11 @@
 slug = "logseq"
 name = "Slatewave for Logseq"
 category = "notes"
-detect_command = "test -d /Applications/Logseq.app"
+# Cover the three common install shapes:
+#   - macOS .app    — /Applications/Logseq.app
+#   - Linux deb     — `logseq` on $PATH
+#   - Linux Flatpak — com.logseq.Logseq in `flatpak list`
+detect_command = "command -v logseq || test -d /Applications/Logseq.app || flatpak list 2>/dev/null | grep -q com.logseq.Logseq"
 
 [install]
 # Logseq Marketplace theme listing is pending — load as an unpacked
