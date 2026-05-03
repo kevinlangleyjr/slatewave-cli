@@ -66,10 +66,6 @@
           "type": "string",
           "description": "VSCode extension ID (vscode-ext), e.g. \"kevinlangleyjr.slatewave\"."
         },
-        "payload": {
-          "type": "string",
-          "description": "Clipboard payload (clipboard install type — reserved for future use)."
-        },
         "instructions": {
           "type": "array",
           "items": { "type": "string" },
@@ -135,10 +131,6 @@
         "import": {
           "type": "string",
           "description": "Path to add to the import = [...] array (toml-import)."
-        },
-        "plugin_spec": {
-          "type": "string",
-          "description": "Lua plugin spec content (neovim-plugin-spec — reserved for future use)."
         }
       }
     },

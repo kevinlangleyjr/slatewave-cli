@@ -40,7 +40,6 @@ type Install struct {
 	//   vscode-ext        — code --install-extension Identifier
 	//   marketplace       — open URL in browser, exit (no automation)
 	//   gui-import        — write file to Dest, then `open Dest`
-	//   clipboard         — copy Payload to clipboard, print instructions
 	//   manual            — print Instructions and exit
 	Type string `toml:"type"`
 
@@ -54,9 +53,6 @@ type Install struct {
 
 	// vscode-ext-specific
 	Identifier string `toml:"identifier"` // e.g. "kevinlangleyjr.slatewave"
-
-	// clipboard-specific
-	Payload string `toml:"payload"`
 
 	// manual-specific
 	Instructions []string `toml:"instructions"`
@@ -85,7 +81,6 @@ type Activate struct {
 	//   gitconfig-include    — add include.path to ~/.gitconfig
 	//   shell-rc             — append Line to ~/.zshrc / ~/.bashrc
 	//   toml-import          — add an import line to a TOML config
-	//   neovim-plugin-spec   — write a lazy.nvim plugin file
 	Type string `toml:"type"`
 
 	// ini-key fields
@@ -103,9 +98,6 @@ type Activate struct {
 	// toml-import fields
 	TOMLPath string `toml:"toml_path"` // e.g. ~/.config/alacritty/alacritty.toml
 	Import   string `toml:"import"`    // e.g. import = ["~/.config/alacritty/themes/slatewave.toml"]
-
-	// neovim-plugin-spec fields
-	PluginSpec string `toml:"plugin_spec"` // Lua plugin spec content
 }
 
 // Verify holds an optional smoke-test command run after install. Empty
