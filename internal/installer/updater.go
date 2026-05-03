@@ -42,26 +42,40 @@ func Update(t manifest.Theme, opts Options) error {
 }
 
 func refetch(t manifest.Theme, opts Options) error {
-	if t.Install.URL == "" || t.Install.Dest == "" {
-		return fmt.Errorf("update %q: install.url or install.dest missing", t.Theme.Slug)
-	}
-	dest, err := expandPath(t.Install.Dest)
+	files, err := curlFiles(t)
 	if err != nil {
-		return err
+		return fmt.Errorf("update %q: %w", t.Theme.Slug, err)
 	}
 	if opts.DryRun {
 		return nil
 	}
+	for _, f := range files {
+		dest, err := expandPath(f.Dest)
+		if err != nil {
+			return err
+		}
+		if err := atomicRefetch(f.URL, dest); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// atomicRefetch downloads url to a temp file in dest's directory, then
+// renames over dest. Atomicity matters here (more than in the install
+// path) because a failed update mid-write would otherwise corrupt an
+// existing, working theme.
+func atomicRefetch(url, dest string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return fmt.Errorf("create dest dir: %w", err)
 	}
-	resp, err := http.Get(t.Install.URL)
+	resp, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("fetch %s: %w", t.Install.URL, err)
+		return fmt.Errorf("fetch %s: %w", url, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("fetch %s: %s", t.Install.URL, resp.Status)
+		return fmt.Errorf("fetch %s: %s", url, resp.Status)
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(dest), ".slatewave-fetch-*")
 	if err != nil {
@@ -75,7 +89,6 @@ func refetch(t manifest.Theme, opts Options) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	// Atomic replace — if the rename fails, the original is still in place.
 	return os.Rename(tmp.Name(), dest)
 }
 

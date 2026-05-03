@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/tui"
@@ -142,12 +144,74 @@ func TestActivateLabel(t *testing.T) {
 		{manifest.Activate{Type: "shell-rc", Files: []string{"~/.zshrc"}}, "Appending to ~/.zshrc"},
 		{manifest.Activate{Type: "shell-rc"}, "Appending activation line"},
 		{manifest.Activate{Type: "toml-import", TOMLPath: "/y"}, "Importing into /y"},
+		{manifest.Activate{Type: "yaml-set", YAMLPath: "/z/lsd.yaml"}, "Setting keys in /z/lsd.yaml"},
 		{manifest.Activate{Type: "what"}, "Activating"}, // default branch
 	}
 	for _, c := range cases {
 		got := activateLabel(manifest.Theme{Activate: c.activate})
 		if got != c.want {
 			t.Errorf("activateLabel(%q) = %q, want %q", c.activate.Type, got, c.want)
+		}
+	}
+}
+
+// ----- updateLabel (cmd/update.go) -----
+
+func TestUpdateLabel(t *testing.T) {
+	cases := []struct {
+		install manifest.Install
+		want    string
+	}{
+		{manifest.Install{Type: "curl"}, "Re-fetching theme file"},
+		{manifest.Install{Type: "gui-import"}, "Re-fetching theme file"},
+		{manifest.Install{Type: "clone", CloneDest: "~/.config/themes/x"}, "git pull --ff-only on ~/.config/themes/x"},
+		{manifest.Install{Type: "vscode-ext", Identifier: "x.y"}, "Reinstalling VSCode extension x.y"},
+		{manifest.Install{Type: "marketplace"}, "Marketplace install — manual update"},
+		{manifest.Install{Type: "manual"}, "Manual install — manual update"},
+		{manifest.Install{Type: "weirdo"}, "Updating"}, // default branch
+	}
+	for _, c := range cases {
+		got := updateLabel(manifest.Theme{Install: c.install})
+		if got != c.want {
+			t.Errorf("updateLabel(%q) = %q, want %q", c.install.Type, got, c.want)
+		}
+	}
+}
+
+// ----- uninstallDoneMessage (cmd/uninstall.go) -----
+//
+// Tool-specific guidance: terminals + GUI editors need a relaunch hint;
+// prompt managers need a shell restart; bat/delta/git diff just work
+// on next invocation so they fall through to the default "Reverted."
+//
+// Theme.Name must start with "Slatewave for " for the slugs that quote
+// the suffix back to the user — uninstallDoneMessage slices the prefix
+// off via len("Slatewave for ").
+func TestUninstallDoneMessage(t *testing.T) {
+	cases := []struct {
+		slug string
+		name string
+		want string
+	}{
+		{"ghostty", "Slatewave for Ghostty", "Reverted. Quit and relaunch Ghostty to see your original colors — running terminals keep the loaded theme in memory."},
+		{"alacritty", "Slatewave for Alacritty", "Reverted. Quit and relaunch Alacritty to see your original colors — running terminals keep the loaded theme in memory."},
+		{"wezterm", "Slatewave for WezTerm", "Reverted. Quit and relaunch WezTerm to see your original colors — running terminals keep the loaded theme in memory."},
+		{"iterm2", "Slatewave for iTerm2", "Reverted. Quit and relaunch iTerm2 to see your original colors — running terminals keep the loaded theme in memory."},
+		{"kitty", "Slatewave for kitty", "Reverted. Quit and relaunch kitty to see your original colors — running terminals keep the loaded theme in memory."},
+		{"btop", "Slatewave for btop", "Reverted. Quit and relaunch `btop` if it's open."},
+		{"oh-my-posh", "Slatewave for oh-my-posh", "Reverted. Restart your shell or `source` your rc file."},
+		{"starship", "Slatewave for starship", "Reverted. Restart your shell or `source` your rc file."},
+		{"obsidian", "Slatewave for Obsidian", "Reverted. Restart Obsidian if it's open — the theme is loaded once at launch."},
+		{"logseq", "Slatewave for Logseq", "Reverted. Restart Logseq if it's open — the theme is loaded once at launch."},
+		{"markedit", "Slatewave for MarkEdit", "Reverted. Restart MarkEdit if it's open — the theme is loaded once at launch."},
+		{"vscode", "Slatewave for VSCode", "Reverted. VSCode picks up the change immediately."},
+		{"bat", "Slatewave for bat", "Reverted."}, // default branch — bat re-reads config per invocation
+	}
+	for _, c := range cases {
+		th := manifest.Theme{Theme: manifest.Meta{Slug: c.slug, Name: c.name}}
+		got := uninstallDoneMessage(th)
+		if got != c.want {
+			t.Errorf("uninstallDoneMessage(%q) = %q, want %q", c.slug, got, c.want)
 		}
 	}
 }
@@ -273,6 +337,116 @@ func TestPrintPostInstallInstructions_SkipsThemesWithoutInstructionsInMixedSet(t
 	}
 	if !strings.Contains(out, "Slatewave for Obsidian") {
 		t.Errorf("theme with instructions should appear: %q", out)
+	}
+}
+
+// ----- shell completion helpers (cmd/completion.go) -----
+
+// validInstallArgs only completes when args is empty — once the user
+// has typed a slug, cobra shouldn't suggest a second positional.
+func TestValidInstallArgs_StopsAfterFirstArg(t *testing.T) {
+	got, dir := validInstallArgs(nil, []string{"bat"}, "")
+	if got != nil {
+		t.Errorf("validInstallArgs after-first-arg = %v, want nil", got)
+	}
+	if dir != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("directive = %v, want NoFileComp", dir)
+	}
+}
+
+func TestValidInstallArgs_FiltersByPrefix(t *testing.T) {
+	got, dir := validInstallArgs(nil, nil, "ba")
+	if dir != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("directive = %v, want NoFileComp", dir)
+	}
+	// "bat" is in the embedded set; it must show up. Anything not
+	// starting with "ba" must not.
+	var foundBat bool
+	for _, slug := range got {
+		if !strings.HasPrefix(slug, "ba") {
+			t.Errorf("slug %q leaked through prefix filter", slug)
+		}
+		if slug == "bat" {
+			foundBat = true
+		}
+	}
+	if !foundBat {
+		t.Errorf("expected `bat` in completions, got %v", got)
+	}
+}
+
+func TestValidInstallArgs_EmptyPrefixReturnsAll(t *testing.T) {
+	got, _ := validInstallArgs(nil, nil, "")
+	if len(got) < 10 {
+		t.Errorf("empty-prefix completion returned %d slugs, expected the full embedded set", len(got))
+	}
+}
+
+// validInstalledArgs completes from state, not the manifest set, so the
+// test populates state and asserts the filter only surfaces installed
+// slugs.
+func TestValidInstalledArgs_OnlyInstalledSlugs(t *testing.T) {
+	env := setupCmdEnv(t)
+	env.putRecord(t, state.Record{Slug: "bat", InstallType: "manual"})
+	env.putRecord(t, state.Record{Slug: "btop", InstallType: "manual"})
+
+	got, dir := validInstalledArgs(nil, nil, "b")
+	if dir != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("directive = %v, want NoFileComp", dir)
+	}
+	want := map[string]bool{"bat": true, "btop": true}
+	if len(got) != 2 {
+		t.Fatalf("got %d slugs, want 2 (bat, btop): %v", len(got), got)
+	}
+	for _, slug := range got {
+		if !want[slug] {
+			t.Errorf("unexpected slug in installed completions: %q", slug)
+		}
+	}
+}
+
+func TestValidInstalledArgs_StopsAfterFirstArg(t *testing.T) {
+	setupCmdEnv(t)
+	got, _ := validInstalledArgs(nil, []string{"bat"}, "")
+	if got != nil {
+		t.Errorf("validInstalledArgs after-first-arg = %v, want nil", got)
+	}
+}
+
+// validCategories deduplicates — the embedded set has multiple themes
+// per category but the completion must surface each category once.
+func TestValidCategories_DedupesAndFilters(t *testing.T) {
+	got, dir := validCategories(nil, nil, "")
+	if dir != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("directive = %v, want NoFileComp", dir)
+	}
+	seen := map[string]int{}
+	for _, c := range got {
+		seen[c]++
+	}
+	for c, n := range seen {
+		if n > 1 {
+			t.Errorf("category %q duplicated %d times in completions", c, n)
+		}
+	}
+	// Embedded set ships at least these — a regression here means
+	// validCategories started filtering / sorting differently.
+	for _, want := range []string{"editor", "terminal"} {
+		if seen[want] == 0 {
+			t.Errorf("expected category %q in completions, got %v", want, got)
+		}
+	}
+}
+
+func TestValidCategories_PrefixFilter(t *testing.T) {
+	got, _ := validCategories(nil, nil, "term")
+	for _, c := range got {
+		if !strings.HasPrefix(c, "term") {
+			t.Errorf("category %q leaked through `term` prefix filter", c)
+		}
+	}
+	if len(got) == 0 {
+		t.Error("expected at least `terminal` for prefix `term`")
 	}
 }
 
