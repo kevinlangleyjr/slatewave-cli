@@ -1,0 +1,18 @@
+[theme]
+slug = "starship"
+name = "Slatewave for Starship"
+category = "terminal"
+detect_command = "starship --version"
+
+[install]
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/starship-slatewave/main/slatewave.toml"
+dest = "$HOME/.config/starship.toml"
+
+[activate]
+type = "shell-rc"
+files = ["~/.zshrc", "~/.bashrc"]
+line = 'eval "$(starship init zsh)"'
+
+[verify]
+command = "test -f ~/.config/starship.toml"

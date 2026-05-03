@@ -1,0 +1,18 @@
+[theme]
+slug = "wezterm"
+name = "Slatewave for WezTerm"
+category = "terminal"
+detect_command = "wezterm --version"
+
+[install]
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/wezterm-slatewave/main/slatewave.toml"
+dest = "$HOME/.config/wezterm/colors/slatewave.toml"
+
+[activate]
+type = "shell-rc"
+files = ["~/.config/wezterm/wezterm.lua"]
+line = 'config.color_scheme = "Slatewave"'
+
+[verify]
+command = "test -f ~/.config/wezterm/colors/slatewave.toml"

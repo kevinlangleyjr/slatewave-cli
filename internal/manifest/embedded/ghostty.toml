@@ -1,0 +1,20 @@
+[theme]
+slug = "ghostty"
+name = "Slatewave for Ghostty"
+category = "terminal"
+detect_command = "command -v ghostty"
+
+[install]
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/ghostty-slatewave/main/Slatewave"
+dest = "$HOME/.config/ghostty/themes/Slatewave"
+
+[activate]
+type = "ini-key"
+file = "$HOME/.config/ghostty/config"
+key = "theme"
+value = "Slatewave"
+
+[verify]
+command = "grep '^theme' ~/.config/ghostty/config"
+expect = "Slatewave"

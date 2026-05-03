@@ -1,0 +1,19 @@
+[theme]
+slug = "alacritty"
+name = "Slatewave for Alacritty"
+category = "terminal"
+detect_command = "alacritty --version"
+
+[install]
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/alacritty-slatewave/main/slatewave.toml"
+dest = "$HOME/.config/alacritty/themes/slatewave.toml"
+
+[activate]
+type = "toml-import"
+toml_path = "$HOME/.config/alacritty/alacritty.toml"
+import = "~/.config/alacritty/themes/slatewave.toml"
+
+[verify]
+command = "grep -c slatewave ~/.config/alacritty/alacritty.toml"
+expect = "1"
