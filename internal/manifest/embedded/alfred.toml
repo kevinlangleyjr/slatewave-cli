@@ -17,4 +17,16 @@ instructions = [
 type = "none"
 
 [verify]
-command = "test -f ~/Downloads/Slatewave.alfredappearance"
+# The .alfredappearance file we drop in ~/Downloads is just a transient
+# handoff — Alfred copies it into its own preferences package on import,
+# under ~/Library/Application Support/Alfred/Alfred.alfredpreferences/themes/
+# theme.fileimport.<UUID>/theme.json. Each theme.json carries the
+# original "name" : "Slatewave" field, so grep against the glob across
+# every imported theme. This survives the user later cleaning Downloads
+# (a previous bug — verify would falsely flag stale).
+#
+# 2>/dev/null swallows the no-such-file error if the user has Alfred
+# installed but no themes imported yet (the glob expands to literal
+# `*/theme.json` and grep errors). Exit non-zero in that case is
+# correct — it means our theme isn't imported.
+command = "grep -q '\"name\" : \"Slatewave\"' \"$HOME/Library/Application Support/Alfred/Alfred.alfredpreferences/themes/\"*/theme.json 2>/dev/null"
