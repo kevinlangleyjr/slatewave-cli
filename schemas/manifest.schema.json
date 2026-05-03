@@ -54,6 +54,19 @@
           "type": "string",
           "description": "Destination path on disk (curl, gui-import). Supports ~ and $ENV expansion."
         },
+        "files": {
+          "type": "array",
+          "description": "Multi-file curl install (curl). When set, url+dest must be empty. Each entry is fetched in order; each dest is recorded as a CreatedPath so uninstall reverses cleanly. Used when one theme ships multiple assets that must land alongside the user's config (e.g. wezterm's slatewave-full.lua + slatewave.lua dependency).",
+          "items": {
+            "type": "object",
+            "required": ["url", "dest"],
+            "additionalProperties": false,
+            "properties": {
+              "url": { "type": "string", "description": "Source URL." },
+              "dest": { "type": "string", "description": "On-disk path (supports ~ and $ENV)." }
+            }
+          }
+        },
         "repo": {
           "type": "string",
           "description": "git URL to clone (clone)."
@@ -143,6 +156,10 @@
         "insert_before": {
           "type": "string",
           "description": "Substring matched against trimmed line content (shell-rc). When set on a non-empty file, `line` is spliced just above the first matching line instead of being appended at EOF. Use for configs where the appended line would be unreachable — e.g. wezterm.lua's `return config` halts execution. Falls back to append when the anchor isn't found."
+        },
+        "comment_prefix": {
+          "type": "string",
+          "description": "Comment-syntax prefix for the marker comment we write above the activation line (shell-rc). Defaults to `#` — correct for shell rcs, gitconfig, ssh config. Lua targets must set this to `--` so the marker is a valid comment in the host file."
         },
         "toml_path": {
           "type": "string",
