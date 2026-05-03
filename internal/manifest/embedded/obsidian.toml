@@ -2,7 +2,13 @@
 slug = "obsidian"
 name = "Slatewave for Obsidian"
 category = "notes"
-detect_command = "test -d /Applications/Obsidian.app"
+# Cover the three common install shapes:
+#   - macOS .app       — /Applications/Obsidian.app
+#   - Linux deb / snap — `obsidian` on $PATH
+#   - Linux Flatpak    — md.obsidian.Obsidian in `flatpak list`
+# AppImage users without $PATH symlinking will fall through; they can
+# alias `obsidian` to the AppImage path to be detected.
+detect_command = "command -v obsidian || test -d /Applications/Obsidian.app || flatpak list 2>/dev/null | grep -q md.obsidian.Obsidian"
 
 [install]
 # Obsidian themes live inside a vault's .obsidian/themes/ directory —
