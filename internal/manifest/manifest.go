@@ -107,9 +107,21 @@ type Activate struct {
 	Import   string `toml:"import"`    // e.g. import = ["~/.config/alacritty/themes/slatewave.toml"]
 }
 
-// Verify holds an optional smoke-test command run after install. Empty
-// VerifyCommand → CLI prints "no verify configured" and skips.
+// Verify holds an optional smoke-test command that doctor + list reconcile
+// run to detect drift. Empty Command → CLI trusts the state record (the
+// install was recorded, no way to check, assume good).
 type Verify struct {
 	Command string `toml:"command"`
 	Expect  string `toml:"expect"` // optional: expected substring in stdout
+	// TrustState short-circuits verify to "always passes if state has the
+	// record." Use for installs where the post-install location is opaque
+	// to us — Alfred imports a .alfredappearance into Alfred's own internal
+	// preferences package under a UUID-named subdir we shouldn't peek at,
+	// marketplace plugins live in IDE-managed dirs, etc. Setting this
+	// avoids false-stale doctor reports when the user later cleans the
+	// transient install asset (e.g. the file we dropped in ~/Downloads).
+	//
+	// Prefer a real Command when there's any way to write one — TrustState
+	// is the escape hatch, not the default.
+	TrustState bool `toml:"trust_state"`
 }

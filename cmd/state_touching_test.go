@@ -101,6 +101,19 @@ func TestVerifyInstalled_ExpectAbsentIsFalse(t *testing.T) {
 	}
 }
 
+func TestVerifyInstalled_TrustStateOverridesFailingCommand(t *testing.T) {
+	// trust_state opts out of verification entirely — even when Command
+	// is set and would fail, it's not run. Keeps doctor from flagging
+	// installs whose post-install location we can't peek at.
+	th := manifest.Theme{Verify: manifest.Verify{
+		Command:    "false",
+		TrustState: true,
+	}}
+	if !verifyInstalled(th) {
+		t.Error("trust_state=true should bypass Command and return true")
+	}
+}
+
 // ----- diagnose -----
 
 func TestDiagnose_EmptyStateReturnsEmpty(t *testing.T) {

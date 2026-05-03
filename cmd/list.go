@@ -160,11 +160,18 @@ func reconcileWithReality(s *state.Store) int {
 	return removed
 }
 
-// verifyInstalled returns true if the theme's verify.command exits 0
-// and (when verify.expect is set) its output contains the expected
-// substring. An empty verify.command means "no way to check" — in
-// that case we trust the state record.
+// verifyInstalled returns true if the theme's verify command passes (or
+// if there's nothing to verify against). Three cases, in order:
+//
+//  1. verify.trust_state = true → the manifest is opting out of checks
+//     entirely (post-install location is opaque to us). Trust state.
+//  2. verify.command is empty → no way to check; trust state.
+//  3. otherwise run the command, return false on non-zero exit; if
+//     verify.expect is set, also require the expected substring in stdout.
 func verifyInstalled(th manifest.Theme) bool {
+	if th.Verify.TrustState {
+		return true
+	}
 	if th.Verify.Command == "" {
 		return true
 	}

@@ -158,6 +158,10 @@
         "expect": {
           "type": "string",
           "description": "Optional substring expected in the command's stdout."
+        },
+        "trust_state": {
+          "type": "boolean",
+          "description": "When true, doctor + list reconcile skip verify.command and trust the state record. Use only when post-install storage is opaque to us (Alfred imports a .alfredappearance into its own UUID-named subdir; the transient ~/Downloads file isn't a reliable check)."
         }
       }
     }
