@@ -36,6 +36,8 @@ func Activate(t manifest.Theme, rec *state.Record, opts Options) error {
 		return doGitconfigInclude(t, rec, opts)
 	case "shell-rc":
 		return doShellRC(t, rec, opts)
+	case "toml-import":
+		return doTOMLImport(t, rec, opts)
 	default:
 		return fmt.Errorf("unknown activate type %q for theme %q", t.Activate.Type, t.Theme.Slug)
 	}
@@ -192,6 +194,124 @@ func pickShellRC(candidates []string) (string, error) {
 		}
 	}
 	return expanded[0], nil
+}
+
+// ----- type: toml-import -----
+
+// doTOMLImport adds a path entry to a TOML `import = [...]` array. Used
+// by alacritty (under [general]) and similar tools whose config is a
+// TOML file with an array of imported sub-files.
+//
+// The manifest declares:
+//
+//   [activate]
+//   type      = "toml-import"
+//   toml_path = "$HOME/.config/alacritty/alacritty.toml"
+//   import    = "~/.config/alacritty/themes/slatewave.toml"
+//
+// We do a small, line-based edit rather than a full TOML parse-edit-
+// emit so user comments and ordering survive. Three cases:
+//
+//   1. import = [...] already contains our entry  → no-op (idempotent)
+//   2. import = [...] exists but doesn't contain us → add entry to that array
+//   3. no import array yet → append `import = ["<our entry>"]` at file end
+//
+// Always backs the file up before rewriting so uninstall can restore.
+func doTOMLImport(t manifest.Theme, rec *state.Record, opts Options) error {
+	if t.Activate.TOMLPath == "" || t.Activate.Import == "" {
+		return fmt.Errorf("toml-import activate for %q missing toml_path or import", t.Theme.Slug)
+	}
+	file, err := expandPath(t.Activate.TOMLPath)
+	if err != nil {
+		return err
+	}
+	entry, err := expandPath(t.Activate.Import)
+	if err != nil {
+		return err
+	}
+
+	// Read existing config; missing-file is a valid starting state
+	// (we'll create one with just our import line).
+	data, err := os.ReadFile(file)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read %s: %w", file, err)
+	}
+
+	updated, changed, err := tomlImportRewrite(string(data), entry)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil // already imports our entry; idempotent no-op
+	}
+	if opts.DryRun {
+		return nil
+	}
+
+	// Make the parent dir if we're creating the file fresh.
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		return fmt.Errorf("create parent dir: %w", err)
+	}
+
+	// Back up if the file existed; nothing to back up if we're creating.
+	if len(data) > 0 {
+		backup, err := backupFile(file)
+		if err != nil {
+			return err
+		}
+		rec.Backups = append(rec.Backups, state.Backup{Original: file, Path: backup})
+	} else {
+		// File created from nothing — uninstall should delete, not restore.
+		rec.CreatedPaths = append(rec.CreatedPaths, file)
+	}
+
+	return os.WriteFile(file, []byte(updated), 0o644)
+}
+
+// tomlImportRewrite returns the rewritten config text and whether
+// anything changed. Pulled out for unit testing without filesystem.
+func tomlImportRewrite(content, entry string) (string, bool, error) {
+	// Idempotency: if entry already appears in any import = [...] array,
+	// no-op. We match against the quoted form since that's how it'll
+	// land in the file.
+	quoted := fmt.Sprintf("%q", entry)
+	if strings.Contains(content, quoted) {
+		return content, false, nil
+	}
+
+	// Case 2: there's an existing single-line `import = [ ... ]` block;
+	// inject our entry before the closing bracket. Multi-line arrays
+	// fall through to case 3 (append a new single-line import) so we
+	// don't have to parse arbitrary TOML formatting.
+	importRe := regexp.MustCompile(`(?m)^(\s*import\s*=\s*\[)([^\]]*)(\])`)
+	if m := importRe.FindStringSubmatchIndex(content); m != nil {
+		// indices 2,3 = first capture (prefix incl. opening `[`),
+		//         4,5 = second (existing entries),
+		//         6,7 = third (closing `]`).
+		// head must include `import = [`, so slice up to m[3].
+		head := content[:m[3]]
+		existing := strings.TrimSpace(content[m[4]:m[5]])
+		var newBody string
+		if existing == "" {
+			newBody = quoted
+		} else {
+			newBody = existing
+			if !strings.HasSuffix(newBody, ",") {
+				newBody += ","
+			}
+			newBody += " " + quoted
+		}
+		closingPlus := content[m[6]:]
+		return head + newBody + closingPlus, true, nil
+	}
+
+	// Case 3: no import array yet. Append one.
+	suffix := "\n"
+	if len(content) > 0 && !strings.HasSuffix(content, "\n") {
+		suffix = "\n" + suffix
+	}
+	out := content + suffix + "# slatewave\nimport = [" + quoted + "]\n"
+	return out, true, nil
 }
 
 // ----- helpers -----

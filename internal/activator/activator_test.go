@@ -1,6 +1,7 @@
 package activator
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -288,6 +289,87 @@ func TestPickShellRC_FallsBackToFirstCandidateWhenNoMatch(t *testing.T) {
 func TestPickShellRC_EmptyCandidatesErrors(t *testing.T) {
 	if _, err := pickShellRC(nil); err == nil {
 		t.Error("expected error on empty candidates")
+	}
+}
+
+// ----- toml-import activator -----
+
+func TestTOMLImportRewrite_AddsToExistingArray(t *testing.T) {
+	in := `[general]
+import = ["~/.config/alacritty/themes/gruvbox.toml"]
+
+[font]
+size = 14
+`
+	got, changed, err := tomlImportRewrite(in, "/users/test/.config/alacritty/themes/slatewave.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected change")
+	}
+	if !strings.Contains(got, `"~/.config/alacritty/themes/gruvbox.toml"`) {
+		t.Errorf("existing entry was clobbered:\n%s", got)
+	}
+	if !strings.Contains(got, `"/users/test/.config/alacritty/themes/slatewave.toml"`) {
+		t.Errorf("our entry not added:\n%s", got)
+	}
+	// Other sections must survive.
+	if !strings.Contains(got, "size = 14") {
+		t.Errorf("unrelated section damaged:\n%s", got)
+	}
+}
+
+func TestTOMLImportRewrite_IdempotentIfAlreadyImported(t *testing.T) {
+	entry := "/users/test/.config/alacritty/themes/slatewave.toml"
+	in := fmt.Sprintf(`[general]
+import = [%q]
+`, entry)
+	got, changed, err := tomlImportRewrite(in, entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Error("expected no change when entry already imported")
+	}
+	if got != in {
+		t.Errorf("idempotent rewrite mutated content:\nbefore:\n%s\nafter:\n%s", in, got)
+	}
+}
+
+func TestTOMLImportRewrite_AddsArrayWhenMissing(t *testing.T) {
+	in := `[general]
+
+[font]
+size = 14
+`
+	got, changed, err := tomlImportRewrite(in, "/users/test/themes/slatewave.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected change")
+	}
+	if !strings.Contains(got, `import = ["/users/test/themes/slatewave.toml"]`) {
+		t.Errorf("expected new import line, got:\n%s", got)
+	}
+	if !strings.Contains(got, "# slatewave") {
+		t.Errorf("expected slatewave marker comment, got:\n%s", got)
+	}
+}
+
+func TestTOMLImportRewrite_EmptyArrayGetsFilled(t *testing.T) {
+	in := `import = []
+`
+	got, changed, err := tomlImportRewrite(in, "/path/slatewave.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected change")
+	}
+	if !strings.Contains(got, `import = ["/path/slatewave.toml"]`) {
+		t.Errorf("empty array not filled cleanly: %q", got)
 	}
 }
 
