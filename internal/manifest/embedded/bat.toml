@@ -14,9 +14,12 @@ description = "Rebuilding bat theme cache"
 command = "bat cache --build"
 
 [activate]
+# bat reads $HOME/.config/bat/config on every invocation and treats
+# each line as a CLI flag. Writing --theme there is more reliable
+# (and per-shell-agnostic) than exporting BAT_THEME in a shell rc.
 type = "shell-rc"
-files = ["~/.zshrc", "~/.bashrc", "~/.config/fish/config.fish"]
-line = "export BAT_THEME=Slatewave"
+files = ["~/.config/bat/config"]
+line = '--theme="Slatewave"'
 
 [verify]
 command = "bat --list-themes"
