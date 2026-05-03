@@ -2,7 +2,9 @@
 slug = "sublime-text"
 name = "Slatewave for Sublime Text"
 category = "editor"
-# macOS path. Linux dest differs — left as a v0.0.3 enhancement.
+# macOS-only path today. Sublime on Linux installs to
+# ~/.config/sublime-text/Packages/, which would need a per-platform
+# clone_dest field on the manifest schema — not yet there.
 detect_command = "test -d $HOME/Library/Application\\ Support/Sublime\\ Text"
 
 [install]
