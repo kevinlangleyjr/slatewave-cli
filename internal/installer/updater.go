@@ -80,7 +80,7 @@ func refetch(t manifest.Theme, opts Options) error {
 }
 
 func gitPull(t manifest.Theme, opts Options) error {
-	dest, err := expandPath(t.Install.CloneDest)
+	dest, err := expandPath(pickCloneDest(t))
 	if err != nil {
 		return err
 	}

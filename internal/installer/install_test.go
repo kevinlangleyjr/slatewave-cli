@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -306,6 +307,61 @@ func TestDoManual_IsAlwaysNoOp(t *testing.T) {
 	}
 	if len(rec.CreatedPaths) != 0 {
 		t.Errorf("manual install recorded paths: %v", rec.CreatedPaths)
+	}
+}
+
+// ----- pickCloneDest -----
+
+func TestPickCloneDest_FallsBackToCloneDestWhenNoOverride(t *testing.T) {
+	th := manifest.Theme{Install: manifest.Install{CloneDest: "/fallback"}}
+	if got := pickCloneDest(th); got != "/fallback" {
+		t.Errorf("no overrides → expected fallback, got %q", got)
+	}
+}
+
+func TestPickCloneDest_PicksOverrideForCurrentOS(t *testing.T) {
+	// Set the override matching the current GOOS and assert it wins over
+	// CloneDest. We can't change runtime.GOOS at runtime so this test
+	// only covers the runtime's actual OS — but cross-platform CI (now
+	// matrixed across linux + macos) covers both branches in aggregate.
+	overrides := manifest.Install{
+		CloneDest:        "/fallback",
+		CloneDestDarwin:  "/mac-only",
+		CloneDestLinux:   "/linux-only",
+		CloneDestWindows: "/win-only",
+	}
+	got := pickCloneDest(manifest.Theme{Install: overrides})
+	switch got {
+	case "/mac-only", "/linux-only", "/win-only":
+		// expected — one of the per-OS branches fired
+	case "/fallback":
+		t.Errorf("per-OS override didn't win over CloneDest: got %q", got)
+	default:
+		t.Errorf("unexpected pick: %q", got)
+	}
+}
+
+func TestPickCloneDest_FallsBackWhenOnlyOtherOSesHaveOverrides(t *testing.T) {
+	// Set overrides for OSes other than the current one — should fall
+	// through to CloneDest. Same caveat as above: only exercises the
+	// non-matching branch for the runtime's current OS.
+	var overrides manifest.Install
+	overrides.CloneDest = "/fallback"
+	switch runtime.GOOS {
+	case "darwin":
+		overrides.CloneDestLinux = "/linux-only"
+		overrides.CloneDestWindows = "/win-only"
+	case "linux":
+		overrides.CloneDestDarwin = "/mac-only"
+		overrides.CloneDestWindows = "/win-only"
+	case "windows":
+		overrides.CloneDestDarwin = "/mac-only"
+		overrides.CloneDestLinux = "/linux-only"
+	default:
+		t.Skipf("unrecognized GOOS=%s", runtime.GOOS)
+	}
+	if got := pickCloneDest(manifest.Theme{Install: overrides}); got != "/fallback" {
+		t.Errorf("expected fallback (no override for current OS), got %q", got)
 	}
 }
 

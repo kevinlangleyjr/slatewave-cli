@@ -107,8 +107,27 @@ func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, err
 
 // ----- type: clone -----
 
+// pickCloneDest returns the platform-specific clone_dest if the manifest sets one for this runtime.GOOS, otherwise the generic CloneDest. Lets one manifest target tools whose config dirs differ between OSes (sublime-text is the canonical case).
+func pickCloneDest(t manifest.Theme) string {
+	switch runtime.GOOS {
+	case "darwin":
+		if t.Install.CloneDestDarwin != "" {
+			return t.Install.CloneDestDarwin
+		}
+	case "linux":
+		if t.Install.CloneDestLinux != "" {
+			return t.Install.CloneDestLinux
+		}
+	case "windows":
+		if t.Install.CloneDestWindows != "" {
+			return t.Install.CloneDestWindows
+		}
+	}
+	return t.Install.CloneDest
+}
+
 func doClone(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
-	dest, err := expandPath(t.Install.CloneDest)
+	dest, err := expandPath(pickCloneDest(t))
 	if err != nil {
 		return rec, err
 	}
