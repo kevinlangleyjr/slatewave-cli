@@ -44,12 +44,33 @@ Or from a release binary on the [Releases page](https://github.com/kevinlangleyj
 ## Commands
 
 ```
-slatewave list                  # every theme, with ● / ○ install markers
-slatewave install <theme>       # install + activate one theme
-slatewave install <theme> --dry-run    # preview the plan
-slatewave uninstall <theme>     # reverse files, restore backups, remove appended lines
-slatewave status [theme]        # show install footprint + paths
+slatewave list                          # every theme, with ● / ○ install markers
+slatewave install <theme>               # install + activate one theme
+slatewave install --all                 # install every shipping theme
+slatewave install --category=editor     # install every theme in a category
+slatewave install <theme> --dry-run     # preview the plan
+slatewave update <theme>                # re-fetch curl assets / git pull clones
+slatewave update --all                  # update every installed theme
+slatewave uninstall <theme>             # reverse files, restore backups, remove appended lines
+slatewave status [theme]                # show install footprint + paths
 ```
+
+## Shell completions
+
+Theme names and category values autocomplete for every command. Drop into your shell init once:
+
+```sh
+# zsh
+slatewave completion zsh > "${fpath[1]}/_slatewave"
+
+# bash (Linux)
+slatewave completion bash | sudo tee /etc/bash_completion.d/slatewave > /dev/null
+
+# fish
+slatewave completion fish > ~/.config/fish/completions/slatewave.fish
+```
+
+Then `slatewave install <TAB>` lists every theme, `slatewave uninstall <TAB>` lists only what's installed, `--category=<TAB>` lists just the categories that have at least one theme.
 
 ## How it works
 

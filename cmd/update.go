@@ -36,7 +36,8 @@ shows when each theme was last refreshed.
 Themes that aren't installed are skipped silently. Themes whose install
 type has no automated update path (` + "`marketplace`" + `, ` + "`manual`" + `) are reported
 with a one-line hint and continue.`,
-	Args: cobra.MaximumNArgs(1),
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: validInstalledArgs,
 	RunE: func(_ *cobra.Command, args []string) error {
 		if updateAll && updateCategory != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
@@ -60,6 +61,7 @@ func init() {
 	updateCmd.Flags().BoolVar(&updateDryRun, "dry-run", false, "Print what would happen without re-fetching")
 	updateCmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed theme")
 	updateCmd.Flags().StringVar(&updateCategory, "category", "", "Update every installed theme in this category")
+	_ = updateCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
 // updateBulk iterates every installed slug, optionally filtered by
