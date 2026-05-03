@@ -108,7 +108,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["", "none", "ini-key", "gitconfig-include", "shell-rc", "toml-import"],
+          "enum": ["", "none", "ini-key", "gitconfig-include", "shell-rc", "toml-import", "yaml-set"],
           "description": "Activate dispatch tag."
         },
         "file": {
@@ -143,6 +143,29 @@
         "import": {
           "type": "string",
           "description": "Path to add to the import = [...] array (toml-import)."
+        },
+        "yaml_path": {
+          "type": "string",
+          "description": "YAML config file to edit (yaml-set). Supports ~ and $ENV expansion."
+        },
+        "yaml_set": {
+          "type": "array",
+          "description": "Nested-key sets to apply to the YAML file (yaml-set). Each entry is a depth-2 dotted path \"parent.child\" plus the scalar value to write under it.",
+          "items": {
+            "type": "object",
+            "required": ["path", "value"],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Depth-2 dotted path (\"parent.child\") to set."
+              },
+              "value": {
+                "type": "string",
+                "description": "Scalar value to write under the path."
+              }
+            }
+          }
         }
       }
     },

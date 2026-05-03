@@ -115,6 +115,7 @@ func TestEmbeddedManifests_ActivateTypesAreKnown(t *testing.T) {
 		"gitconfig-include": true,
 		"shell-rc":          true,
 		"toml-import":       true,
+		"yaml-set":          true,
 	}
 	all, _ := LoadAll()
 	for _, th := range all {
@@ -186,6 +187,18 @@ func TestEmbeddedManifests_FieldsByActivateType(t *testing.T) {
 		case "toml-import":
 			if th.Activate.TOMLPath == "" || th.Activate.Import == "" {
 				t.Errorf("%s: toml-import activate missing toml_path/import", slug)
+			}
+		case "yaml-set":
+			if th.Activate.YAMLPath == "" {
+				t.Errorf("%s: yaml-set activate missing yaml_path", slug)
+			}
+			if len(th.Activate.YAMLSet) == 0 {
+				t.Errorf("%s: yaml-set activate missing yaml_set entries", slug)
+			}
+			for i, p := range th.Activate.YAMLSet {
+				if p.Path == "" || p.Value == "" {
+					t.Errorf("%s: yaml-set entry %d missing path or value", slug, i)
+				}
 			}
 		}
 	}

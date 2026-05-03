@@ -88,6 +88,7 @@ type Activate struct {
 	//   gitconfig-include    — add include.path to ~/.gitconfig
 	//   shell-rc             — append Line to ~/.zshrc / ~/.bashrc
 	//   toml-import          — add an import line to a TOML config
+	//   yaml-set             — set one or more nested keys in a YAML file
 	Type string `toml:"type"`
 
 	// ini-key fields
@@ -105,6 +106,18 @@ type Activate struct {
 	// toml-import fields
 	TOMLPath string `toml:"toml_path"` // e.g. ~/.config/alacritty/alacritty.toml
 	Import   string `toml:"import"`    // e.g. import = ["~/.config/alacritty/themes/slatewave.toml"]
+
+	// yaml-set fields
+	YAMLPath string     `toml:"yaml_path"` // e.g. ~/.config/lsd/config.yaml
+	YAMLSet  []YAMLPair `toml:"yaml_set"`  // nested-key sets to apply
+}
+
+// YAMLPair is one (path, value) entry in a yaml-set activator. Path is a
+// dotted path of depth 2 — "parent.child" — and Value is written as the
+// child's scalar value.
+type YAMLPair struct {
+	Path  string `toml:"path"`
+	Value string `toml:"value"`
 }
 
 // Verify holds an optional smoke-test command that doctor + list reconcile
