@@ -83,7 +83,7 @@ func renderRow(t manifest.Theme, s *state.Store) string {
 	}
 
 	slug := lipgloss.NewStyle().Width(16).Render(t.Theme.Slug)
-	cat := ui.Muted.Copy().Width(12).Render(t.Theme.Category)
+	cat := ui.Muted.Width(12).Render(t.Theme.Category)
 	return fmt.Sprintf("  %s  %s  %s  %s", marker, slug, cat, statusText)
 }
 

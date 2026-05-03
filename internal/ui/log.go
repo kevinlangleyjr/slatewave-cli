@@ -30,7 +30,7 @@ func StepStart(message string) func(err error) {
 		if pad < 1 {
 			pad = 1
 		}
-		fmt.Fprint(W, fmt.Sprintf("%*s", pad, ""))
+		fmt.Fprintf(W, "%*s", pad, "")
 		if err == nil {
 			fmt.Fprintln(W, Success.Render("✓"))
 		} else {
