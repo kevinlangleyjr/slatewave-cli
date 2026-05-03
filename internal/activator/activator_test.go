@@ -115,25 +115,79 @@ func TestActivate_IniKey_IdempotentNoOpIfAlreadySet(t *testing.T) {
 	}
 }
 
-func TestActivate_IniKey_FailsClearlyWhenKeyMissing(t *testing.T) {
+func TestActivate_IniKey_AppendsKeyWhenAbsent(t *testing.T) {
+	// File exists but doesn't yet contain our target key — common shape
+	// for a fresh config the user hasn't customized our option in yet.
+	// Activator should append the line under a "# slatewave" marker
+	// rather than erroring.
 	file := filepath.Join(t.TempDir(), "btop.conf")
-	if err := os.WriteFile(file, []byte("other_key = false\n"), 0o644); err != nil {
+	original := "other_key = false\n"
+	if err := os.WriteFile(file, []byte(original), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
+	rec := state.Record{}
 	th := manifest.Theme{
 		Theme: manifest.Meta{Slug: "btop"},
 		Activate: manifest.Activate{
 			Type: "ini-key", File: file, Key: "color_theme", Value: "slatewave",
 		},
 	}
-	rec := state.Record{}
-	err := Activate(th, &rec, Options{})
-	if err == nil {
-		t.Fatal("Activate should fail when target key is absent")
+	if err := Activate(th, &rec, Options{}); err != nil {
+		t.Fatalf("Activate: %v", err)
 	}
-	if !strings.Contains(err.Error(), "color_theme") {
-		t.Errorf("error should name the missing key; got: %v", err)
+
+	got, _ := os.ReadFile(file)
+	gotStr := string(got)
+	if !strings.Contains(gotStr, "other_key = false") {
+		t.Errorf("preexisting line was clobbered:\n%s", gotStr)
+	}
+	if !strings.Contains(gotStr, `color_theme = "slatewave"`) {
+		t.Errorf("color_theme line not appended:\n%s", gotStr)
+	}
+	if !strings.Contains(gotStr, "# slatewave") {
+		t.Errorf("missing slatewave marker comment:\n%s", gotStr)
+	}
+	// Modified file → backup recorded.
+	if len(rec.Backups) != 1 {
+		t.Errorf("expected 1 backup, got %d", len(rec.Backups))
+	}
+}
+
+func TestActivate_IniKey_CreatesFileWhenAbsent(t *testing.T) {
+	// File doesn't exist (e.g., ~/.config/ghostty/config before the user
+	// has ever launched ghostty). Activator should create the parent dir,
+	// write a fresh file with just our line, and record the file as a
+	// CreatedPath so uninstall removes it (rather than restoring a backup
+	// of an empty file).
+	dir := t.TempDir()
+	file := filepath.Join(dir, "subdir", "config") // parent dir missing too
+
+	rec := state.Record{}
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "ghostty"},
+		Activate: manifest.Activate{
+			Type: "ini-key", File: file, Key: "theme", Value: "Slatewave",
+		},
+	}
+	if err := Activate(th, &rec, Options{}); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+
+	got, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("file not created: %v", err)
+	}
+	if !strings.Contains(string(got), `theme = "Slatewave"`) {
+		t.Errorf("expected our line in fresh file:\n%s", got)
+	}
+	// Created from scratch → CreatedPath, NOT Backup. Uninstall should
+	// remove the file rather than restore an empty one.
+	if len(rec.CreatedPaths) != 1 || rec.CreatedPaths[0] != file {
+		t.Errorf("expected CreatedPaths=[%s], got %+v", file, rec.CreatedPaths)
+	}
+	if len(rec.Backups) != 0 {
+		t.Errorf("creating from scratch should not record a backup; got %d", len(rec.Backups))
 	}
 }
 
