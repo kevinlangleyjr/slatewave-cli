@@ -318,6 +318,8 @@ func activateLabel(t manifest.Theme) string {
 		return "Appending activation line"
 	case "toml-import":
 		return "Importing into " + t.Activate.TOMLPath
+	case "yaml-set":
+		return "Setting keys in " + t.Activate.YAMLPath
 	default:
 		return "Activating"
 	}
