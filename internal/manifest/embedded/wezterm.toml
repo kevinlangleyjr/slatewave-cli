@@ -2,7 +2,10 @@
 slug = "wezterm"
 name = "Slatewave for WezTerm"
 category = "terminal"
-detect_command = "wezterm --version"
+# `wezterm --version` works when the CLI is on $PATH (Linux installs
+# and macOS users who symlinked the in-bundle binary). Falls through to
+# the .app bundle check for stock macOS Drag-to-/Applications installs.
+detect_command = "command -v wezterm || test -d /Applications/WezTerm.app"
 
 [install]
 type = "curl"
