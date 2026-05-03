@@ -13,11 +13,16 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
+var listCategory string
+
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List every Slatewave theme and what's installed",
 	Long: `Show every theme in the Slatewave family, grouped by category, with
 ` + "`●`" + ` for installed and ` + "`○`" + ` for not. Footer shows the install count.
+
+  slatewave list                       # every theme
+  slatewave list --category=editor     # only one category
 
 Before rendering, list silently re-runs each installed theme's verify
 command. If a theme was uninstalled outside the CLI (e.g. ` + "`code --uninstall-extension`" + `
@@ -45,7 +50,16 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 		order := []string{"editor", "terminal", "notes", "productivity", "chat"}
 		groups := map[string][]manifest.Theme{}
 		for _, t := range themes {
+			if listCategory != "" && t.Theme.Category != listCategory {
+				continue
+			}
 			groups[t.Theme.Category] = append(groups[t.Theme.Category], t)
+		}
+
+		// If --category was set and matched nothing, error rather than
+		// printing an empty box (which would look like a render bug).
+		if listCategory != "" && len(groups) == 0 {
+			return fmt.Errorf("no themes in category %q (try one of: %s)", listCategory, strings.Join(order, ", "))
 		}
 
 		var rows []string
@@ -66,11 +80,27 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 
 		body := strings.Join(rows, "\n")
 		header := ui.Title.Render("Slatewave themes")
-		footer := summary(themes, s)
+		// Footer counts use the filtered theme set so "N of M installed"
+		// matches what the user is actually looking at.
+		footerThemes := themes
+		if listCategory != "" {
+			footerThemes = nil
+			for _, t := range themes {
+				if t.Theme.Category == listCategory {
+					footerThemes = append(footerThemes, t)
+				}
+			}
+		}
+		footer := summary(footerThemes, s)
 
 		fmt.Fprintln(ui.W, ui.Box.Render(header+"\n\n"+body+"\n\n"+footer))
 		return nil
 	},
+}
+
+func init() {
+	listCmd.Flags().StringVar(&listCategory, "category", "", "Only show themes in this category (editor / terminal / notes / productivity / chat)")
+	_ = listCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
 func renderRow(t manifest.Theme, s *state.Store) string {
