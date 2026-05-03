@@ -66,4 +66,3 @@ func (e *cmdEnv) putRecord(t *testing.T, rec state.Record) {
 		t.Fatalf("state.Save in setup: %v", err)
 	}
 }
-

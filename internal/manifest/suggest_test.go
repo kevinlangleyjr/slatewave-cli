@@ -12,10 +12,10 @@ func TestSuggestSlug_FindsClosestForOneCharTypo(t *testing.T) {
 		typo string
 		want string
 	}{
-		{"btap", "btop"},        // one-char swap
-		{"vsccode", "vscode"},   // one extra char
+		{"btap", "btop"},           // one-char swap
+		{"vsccode", "vscode"},      // one extra char
 		{"alecritty", "alacritty"}, // one swap mid-word
-		{"deltta", "delta"},     // one extra char in short slug
+		{"deltta", "delta"},        // one extra char in short slug
 	}
 	for _, c := range cases {
 		got := SuggestSlug(c.typo)
@@ -71,7 +71,7 @@ func TestLevenshtein_Basics(t *testing.T) {
 		{"abc", "abc", 0},
 		{"abc", "", 3},
 		{"", "abc", 3},
-		{"kitten", "sitting", 3},      // canonical example
+		{"kitten", "sitting", 3}, // canonical example
 		{"flaw", "lawn", 2},
 		{"btap", "btop", 1},
 	}
