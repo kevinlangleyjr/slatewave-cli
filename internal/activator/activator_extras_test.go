@@ -304,3 +304,211 @@ func TestActivate_TOMLImport_MissingImportErrors(t *testing.T) {
 		t.Errorf("missing import: err = %v", err)
 	}
 }
+
+// ----- yaml-set activator -----
+
+// lsdPairs is the lsd manifest's exact set: two color subkeys.
+var lsdPairs = []manifest.YAMLPair{
+	{Path: "color.when", Value: "auto"},
+	{Path: "color.theme", Value: "custom"},
+}
+
+func TestYAMLSetRewrite_EmptyFile_WritesFresh(t *testing.T) {
+	got, changed, err := yamlSetRewrite("", lsdPairs)
+	if err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed=true on empty file")
+	}
+	want := "# slatewave\ncolor:\n  when: auto\n  theme: custom\n"
+	if got != want {
+		t.Errorf("empty-file output mismatch:\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestYAMLSetRewrite_NoParent_AppendsBlock(t *testing.T) {
+	in := "# user config\ndate:\n  date: relative\n"
+	got, changed, err := yamlSetRewrite(in, lsdPairs)
+	if err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed=true when parent absent")
+	}
+	// Original content preserved.
+	if !strings.Contains(got, "date:\n  date: relative") {
+		t.Errorf("preexisting keys lost:\n%s", got)
+	}
+	// New block appended with both children.
+	if !strings.Contains(got, "color:\n  when: auto\n  theme: custom") {
+		t.Errorf("color block not appended:\n%s", got)
+	}
+	// Slatewave marker is present so uninstall (and a human reader) can
+	// identify the block.
+	if !strings.Contains(got, "# slatewave") {
+		t.Errorf("missing slatewave marker:\n%s", got)
+	}
+}
+
+func TestYAMLSetRewrite_ParentExistsMissingChildren_InsertsBoth(t *testing.T) {
+	in := "color:\n  unrelated: thing\n"
+	got, changed, err := yamlSetRewrite(in, lsdPairs)
+	if err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed=true when children absent under existing parent")
+	}
+	// Both new children are inserted under `color:` (after `unrelated`).
+	for _, want := range []string{"  when: auto", "  theme: custom", "  unrelated: thing"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	// `color:` should appear exactly once — we didn't accidentally append a
+	// second top-level block.
+	if strings.Count(got, "\ncolor:") != 0 || strings.Count(got, "color:\n") != 1 {
+		t.Errorf("color: should appear exactly once at top:\n%s", got)
+	}
+}
+
+func TestYAMLSetRewrite_ChildAtWrongValue_Replaces(t *testing.T) {
+	in := "color:\n  when: never\n  theme: nord\n"
+	got, changed, err := yamlSetRewrite(in, lsdPairs)
+	if err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed=true when child value differs")
+	}
+	if !strings.Contains(got, "  when: auto") || strings.Contains(got, "  when: never") {
+		t.Errorf("when not replaced:\n%s", got)
+	}
+	if !strings.Contains(got, "  theme: custom") || strings.Contains(got, "  theme: nord") {
+		t.Errorf("theme not replaced:\n%s", got)
+	}
+}
+
+func TestYAMLSetRewrite_AlreadyAtDesiredValue_NoOp(t *testing.T) {
+	in := "color:\n  when: auto\n  theme: custom\n"
+	got, changed, err := yamlSetRewrite(in, lsdPairs)
+	if err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	if changed {
+		t.Errorf("expected changed=false when both pairs already at desired value, got changed=true; output:\n%s", got)
+	}
+	if got != in {
+		t.Errorf("content modified despite no-op:\n got: %q\nwant: %q", got, in)
+	}
+}
+
+func TestYAMLSetRewrite_FourSpaceIndent_PreservesIndent(t *testing.T) {
+	// User has chosen 4-space indent for their YAML — the rewriter must
+	// respect it, not silently force 2-space children.
+	in := "color:\n    when: never\n"
+	got, _, err := yamlSetRewrite(in, lsdPairs)
+	if err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	if !strings.Contains(got, "    when: auto") {
+		t.Errorf("when: replacement didn't preserve 4-space indent:\n%s", got)
+	}
+	if !strings.Contains(got, "    theme: custom") {
+		t.Errorf("theme: insertion didn't use existing 4-space indent:\n%s", got)
+	}
+}
+
+func TestYAMLSetRewrite_RejectsDeepPath(t *testing.T) {
+	_, _, err := yamlSetRewrite("", []manifest.YAMLPair{{Path: "a.b.c", Value: "x"}})
+	if err == nil || !strings.Contains(err.Error(), "depth 2") {
+		t.Errorf("expected depth-2 error for path a.b.c, got %v", err)
+	}
+}
+
+// End-to-end test through Activate(): file is created, backup recorded
+// when overwriting, idempotent on repeat run.
+func TestActivate_YAMLSet_CreatesAndIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.yaml")
+
+	rec := state.Record{Slug: "lsd"}
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "lsd"},
+		Activate: manifest.Activate{
+			Type:     "yaml-set",
+			YAMLPath: file,
+			YAMLSet:  lsdPairs,
+		},
+	}
+
+	// First run: file absent → created, recorded as CreatedPath.
+	if err := Activate(th, &rec, Options{}); err != nil {
+		t.Fatalf("first activate: %v", err)
+	}
+	got, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !strings.Contains(string(got), "  when: auto") || !strings.Contains(string(got), "  theme: custom") {
+		t.Errorf("file content missing keys:\n%s", got)
+	}
+	if len(rec.CreatedPaths) != 1 || rec.CreatedPaths[0] != file {
+		t.Errorf("expected CreatedPath %s, got %v", file, rec.CreatedPaths)
+	}
+	if len(rec.Backups) != 0 {
+		t.Errorf("expected no backups when file was created fresh, got %d", len(rec.Backups))
+	}
+
+	// Second run: file already at desired state → no-op (no new backup).
+	rec2 := state.Record{Slug: "lsd"}
+	if err := Activate(th, &rec2, Options{}); err != nil {
+		t.Fatalf("idempotent activate: %v", err)
+	}
+	if len(rec2.Backups) != 0 {
+		t.Errorf("expected no-op on idempotent rerun, got %d backups", len(rec2.Backups))
+	}
+}
+
+func TestActivate_YAMLSet_BacksUpExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.yaml")
+	original := "# user config\ndate:\n  date: relative\n"
+	if err := os.WriteFile(file, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := state.Record{Slug: "lsd"}
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "lsd"},
+		Activate: manifest.Activate{
+			Type:     "yaml-set",
+			YAMLPath: file,
+			YAMLSet:  lsdPairs,
+		},
+	}
+	if err := Activate(th, &rec, Options{}); err != nil {
+		t.Fatalf("activate: %v", err)
+	}
+
+	if len(rec.Backups) != 1 {
+		t.Fatalf("expected 1 backup recorded, got %d", len(rec.Backups))
+	}
+	backupContent, err := os.ReadFile(rec.Backups[0].Path)
+	if err != nil {
+		t.Fatalf("read backup: %v", err)
+	}
+	if string(backupContent) != original {
+		t.Errorf("backup contents diverged from original")
+	}
+
+	// Live file got our keys; original keys preserved.
+	live, _ := os.ReadFile(file)
+	if !strings.Contains(string(live), "date: relative") {
+		t.Errorf("collateral damage: lost user's date config:\n%s", live)
+	}
+	if !strings.Contains(string(live), "  when: auto") {
+		t.Errorf("color.when not set:\n%s", live)
+	}
+}

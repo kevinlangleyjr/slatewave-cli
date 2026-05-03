@@ -38,6 +38,8 @@ func Activate(t manifest.Theme, rec *state.Record, opts Options) error {
 		return doShellRC(t, rec, opts)
 	case "toml-import":
 		return doTOMLImport(t, rec, opts)
+	case "yaml-set":
+		return doYAMLSet(t, rec, opts)
 	default:
 		return fmt.Errorf("unknown activate type %q for theme %q", t.Activate.Type, t.Theme.Slug)
 	}
@@ -353,6 +355,206 @@ func tomlImportRewrite(content, entry string) (string, bool, error) {
 	}
 	out := content + suffix + "# slatewave\nimport = [" + quoted + "]\n"
 	return out, true, nil
+}
+
+// ----- type: yaml-set -----
+
+// doYAMLSet sets one or more nested YAML keys under their respective
+// parents in a depth-2 YAML config. Used by lsd, whose colors are
+// activated by setting `color.when=auto` and `color.theme=custom` in
+// ~/.config/lsd/config.yaml without disturbing the user's other keys.
+//
+// Why depth-2: the only manifest that needs this so far is lsd, and a
+// real YAML parser would reformat the user's file (lose comments, change
+// quoting). Restricting to "parent.child" keeps a line-based rewriter
+// tractable. If a future theme needs deeper nesting, switch this over
+// to gopkg.in/yaml.v3 then.
+//
+// Idempotent: if every requested path is already at its desired value,
+// no-op (no backup created). Otherwise backs the file up before rewriting.
+func doYAMLSet(t manifest.Theme, rec *state.Record, opts Options) error {
+	if t.Activate.YAMLPath == "" {
+		return fmt.Errorf("yaml-set activate for %q missing yaml_path", t.Theme.Slug)
+	}
+	if len(t.Activate.YAMLSet) == 0 {
+		return fmt.Errorf("yaml-set activate for %q missing yaml_set entries", t.Theme.Slug)
+	}
+
+	file, err := expandPath(t.Activate.YAMLPath)
+	if err != nil {
+		return err
+	}
+
+	data, err := os.ReadFile(file)
+	fileExists := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read %s: %w", file, err)
+	}
+
+	updated, changed, err := yamlSetRewrite(string(data), t.Activate.YAMLSet)
+	if err != nil {
+		return fmt.Errorf("yaml-set rewrite for %s: %w", file, err)
+	}
+	if !changed {
+		return nil // every requested path already at desired value
+	}
+	if opts.DryRun {
+		return nil
+	}
+
+	if !fileExists {
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			return fmt.Errorf("create parent dir: %w", err)
+		}
+		rec.CreatedPaths = append(rec.CreatedPaths, file)
+	} else {
+		backup, err := backupFile(file)
+		if err != nil {
+			return err
+		}
+		rec.Backups = append(rec.Backups, state.Backup{Original: file, Path: backup})
+	}
+	return os.WriteFile(file, []byte(updated), 0o644)
+}
+
+// yamlSetRewrite returns the rewritten YAML content and whether anything
+// changed. Pulled out for unit testing without filesystem.
+//
+// Algorithm: group requested pairs by parent (preserving order of first
+// occurrence). For each parent:
+//   - if it doesn't exist as a top-level key, append a fresh `parent:`
+//     block at end-of-file with all of its requested children.
+//   - if it exists, infer its child-indent from the first existing child
+//     (default "  "). For each requested child:
+//       * exists at desired value → no-op
+//       * exists at different value → replace value
+//       * doesn't exist → insert after the parent's last existing child
+//         (or right after the parent line if it has none).
+func yamlSetRewrite(content string, pairs []manifest.YAMLPair) (string, bool, error) {
+	type childKV struct{ child, value string }
+	byParent := map[string][]childKV{}
+	var parentOrder []string
+	for _, p := range pairs {
+		parts := strings.SplitN(p.Path, ".", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" || strings.Contains(parts[1], ".") {
+			return "", false, fmt.Errorf("yaml-set path %q must be \"parent.child\" (depth 2)", p.Path)
+		}
+		parent, child := parts[0], parts[1]
+		if _, ok := byParent[parent]; !ok {
+			parentOrder = append(parentOrder, parent)
+		}
+		byParent[parent] = append(byParent[parent], childKV{child, p.Value})
+	}
+
+	// Empty/missing file → write fresh from all pairs, single # slatewave
+	// marker at the top.
+	if strings.TrimSpace(content) == "" {
+		var sb strings.Builder
+		sb.WriteString("# slatewave\n")
+		for i, parent := range parentOrder {
+			if i > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(parent + ":\n")
+			for _, kv := range byParent[parent] {
+				sb.WriteString("  " + kv.child + ": " + kv.value + "\n")
+			}
+		}
+		return sb.String(), true, nil
+	}
+
+	lines := strings.Split(content, "\n")
+	changed := false
+
+	for _, parent := range parentOrder {
+		parentRe := regexp.MustCompile(`^` + regexp.QuoteMeta(parent) + `\s*:\s*$`)
+
+		parentIdx := -1
+		for i, line := range lines {
+			if parentRe.MatchString(line) {
+				parentIdx = i
+				break
+			}
+		}
+
+		if parentIdx == -1 {
+			// Parent absent: append a fresh block at the end of the file.
+			// Strip any trailing empty lines before appending so we don't
+			// stack blank lines on rerun.
+			for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+				lines = lines[:len(lines)-1]
+			}
+			block := []string{"", "# slatewave", parent + ":"}
+			for _, kv := range byParent[parent] {
+				block = append(block, "  "+kv.child+": "+kv.value)
+			}
+			block = append(block, "")
+			lines = append(lines, block...)
+			changed = true
+			continue
+		}
+
+		// Parent exists. Determine the child-indent string by inspecting
+		// the first non-empty indented line under the parent.
+		indent := childIndentUnder(lines, parentIdx)
+
+		for _, kv := range byParent[parent] {
+			childRe := regexp.MustCompile(`^` + regexp.QuoteMeta(indent) + regexp.QuoteMeta(kv.child) + `\s*:`)
+
+			childIdx := -1
+			lastChildIdx := parentIdx // where to insert if child is absent
+			for j := parentIdx + 1; j < len(lines); j++ {
+				line := lines[j]
+				if strings.TrimSpace(line) == "" {
+					continue
+				}
+				// Stop at the next top-level key (column 0, not a comment
+				// continuation we'd care about).
+				if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+					break
+				}
+				if strings.HasPrefix(line, indent) {
+					lastChildIdx = j
+				}
+				if childRe.MatchString(line) {
+					childIdx = j
+					break
+				}
+			}
+
+			desired := indent + kv.child + ": " + kv.value
+			if childIdx == -1 {
+				// Insert right after the last child of this parent (or
+				// right after the parent line if it has no children yet).
+				insertAt := lastChildIdx + 1
+				lines = append(lines[:insertAt], append([]string{desired}, lines[insertAt:]...)...)
+				changed = true
+			} else if lines[childIdx] != desired {
+				lines[childIdx] = desired
+				changed = true
+			}
+		}
+	}
+
+	return strings.Join(lines, "\n"), changed, nil
+}
+
+// childIndentUnder returns the indent string used by the first existing
+// child of the parent at parentIdx. Falls back to two spaces when the
+// parent has no children yet.
+func childIndentUnder(lines []string, parentIdx int) string {
+	for j := parentIdx + 1; j < len(lines); j++ {
+		line := lines[j]
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+			break // hit next top-level key
+		}
+		trimmed := strings.TrimLeft(line, " \t")
+		return line[:len(line)-len(trimmed)]
+	}
+	return "  "
 }
 
 // ----- helpers -----
