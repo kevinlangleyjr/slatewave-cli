@@ -1,0 +1,31 @@
+[theme]
+slug = "anytype"
+name = "Slatewave for Anytype"
+category = "notes"
+# Cover the three common install shapes:
+#   - macOS .app    — /Applications/Anytype.app
+#   - Linux deb/AppImage — `anytype` on $PATH
+#   - Linux Flatpak — io.anytype.anytype in `flatpak list`
+detect_command = "command -v anytype || test -d /Applications/Anytype.app || flatpak list 2>/dev/null | grep -q io.anytype.anytype"
+
+[install]
+# Anytype loads custom CSS from a single `custom.css` file inside its
+# work directory, but the directory varies across versions and platforms
+# (macOS Application Support, Linux ~/.config, etc.) and the only
+# reliable way to find it is the in-app menu (File → Open → Custom CSS).
+# Clone the theme into a known scratch location and let the user copy
+# the file in via that menu.
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/anytype-slatewave.git"
+clone_dest = "$HOME/.local/share/anytype-slatewave"
+instructions = [
+  "In Anytype, open Menu → File → Open → Custom CSS",
+  "Replace its contents with: ~/.local/share/anytype-slatewave/custom.css",
+  "Run Menu → File → Apply custom CSS — twice (first pass loads variables, second pass picks up rules that reference them)",
+]
+
+[activate]
+type = "none"
+
+[verify]
+command = "test -d $HOME/.local/share/anytype-slatewave"

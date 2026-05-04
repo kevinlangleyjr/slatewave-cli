@@ -63,7 +63,7 @@ func TestEmbeddedManifests_KnownSlugs(t *testing.T) {
 		// dashboard
 		"btop",
 		// notes
-		"obsidian", "logseq", "markedit",
+		"obsidian", "logseq", "markedit", "anytype",
 		// launchers
 		"alfred", "raycast",
 		// chat
