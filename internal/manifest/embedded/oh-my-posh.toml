@@ -2,17 +2,31 @@
 slug = "oh-my-posh"
 name = "Slatewave for Oh My Posh"
 category = "terminal"
+# Oh My Posh ships official binaries for every OS in the Slatewave
+# matrix; the `--version` detect works under sh and cmd /C alike.
+supported_os = ["darwin", "linux", "windows"]
 detect_command = "oh-my-posh --version"
 
 [install]
 type = "curl"
 url = "https://raw.githubusercontent.com/kevinlangleyjr/slatewave-omp/main/slatewave.omp.yml"
-dest = "$HOME/.config/oh-my-posh/slatewave.omp.yml"
+# `~` resolves cross-OS via expandPath; `$HOME` doesn't exist under
+# cmd.exe by default, so prefer the tilde form everywhere.
+dest = "~/.config/oh-my-posh/slatewave.omp.yml"
 
 [activate]
 type = "shell-rc"
 files = ["~/.zshrc", "~/.bashrc"]
 line = "eval \"$(oh-my-posh init zsh --config ~/.config/oh-my-posh/slatewave.omp.yml)\""
+# PowerShell uses `pwsh` (or `powershell` on PS5) as the init target
+# and pipes into Invoke-Expression. Use $env:USERPROFILE for the path
+# so Oh My Posh's parser doesn't choke on the bare tilde under PS.
+files_windows = [
+  "~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+  "~/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1",
+]
+line_windows = "oh-my-posh init pwsh --config \"$env:USERPROFILE\\.config\\oh-my-posh\\slatewave.omp.yml\" | Invoke-Expression"
 
 [verify]
 command = "test -f ~/.config/oh-my-posh/slatewave.omp.yml"
+command_windows = 'if exist "%USERPROFILE%\.config\oh-my-posh\slatewave.omp.yml" (exit 0) else (exit 1)'
