@@ -16,11 +16,20 @@ repo = "https://github.com/kevinlangleyjr/sublime-text-slatewave.git"
 clone_dest = "$HOME/Library/Application Support/Sublime Text/Packages/Slatewave"
 clone_dest_darwin = "$HOME/Library/Application Support/Sublime Text/Packages/Slatewave"
 clone_dest_linux = "$HOME/.config/sublime-text/Packages/Slatewave"
+# Sublime auto-loads the package but won't switch the active color
+# scheme or UI theme on its own — the user has to run the bundled
+# command palette entry once to flip both at the same time. Without
+# these instructions the CLI prints "Done." and the user is left
+# wondering why Sublime still looks the same.
+instructions = [
+  "Open Sublime Text and bring up the Command Palette (⌘⇧P on macOS, Ctrl+Shift+P on Linux)",
+  "Run \"Slatewave: Activate Color Scheme & Theme\" — flips both in one step",
+  "Or set them manually: Preferences → Color Scheme → Slatewave, then Preferences → Theme → Slatewave",
+]
 
 [activate]
-# Sublime auto-loads anything under Packages/. The bundled command
-# palette entry "Slatewave: Activate Color Scheme & Theme" flips both
-# at once — the user runs that from inside Sublime.
+# Activation lives in the bundled command palette entry above, not in
+# a config rewrite — type=none keeps the activator out of the picture.
 type = "none"
 
 [verify]
