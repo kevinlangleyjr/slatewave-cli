@@ -282,7 +282,7 @@ func updateLabel(t manifest.Theme) string {
 	case "clone":
 		return "git pull --ff-only on " + t.Install.CloneDest
 	case "vscode-ext":
-		return "Reinstalling VSCode extension " + t.Install.Identifier
+		return fmt.Sprintf("Reinstalling %s extension %s", installer.VSCodeExtCLI(t), t.Install.Identifier)
 	case "marketplace":
 		return "Marketplace install — manual update"
 	case "manual":

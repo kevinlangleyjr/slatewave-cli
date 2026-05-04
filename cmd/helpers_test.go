@@ -149,7 +149,8 @@ func TestInstallLabel(t *testing.T) {
 	}{
 		{manifest.Install{Type: "curl"}, "Fetching theme file"},
 		{manifest.Install{Type: "clone", Repo: "https://example.com/x"}, "Cloning https://example.com/x"},
-		{manifest.Install{Type: "vscode-ext", Identifier: "x.y"}, "Installing VSCode extension x.y"},
+		{manifest.Install{Type: "vscode-ext", Identifier: "x.y"}, "Installing code extension x.y"},
+		{manifest.Install{Type: "vscode-ext", Identifier: "x.y", CLI: "cursor"}, "Installing cursor extension x.y"},
 		{manifest.Install{Type: "marketplace"}, "Opening Marketplace in your browser"},
 		{manifest.Install{Type: "gui-import"}, "Fetching theme file (GUI import follows)"},
 		{manifest.Install{Type: "manual"}, "Manual install — see instructions below"},
@@ -194,7 +195,8 @@ func TestUpdateLabel(t *testing.T) {
 		{manifest.Install{Type: "curl"}, "Re-fetching theme file"},
 		{manifest.Install{Type: "gui-import"}, "Re-fetching theme file"},
 		{manifest.Install{Type: "clone", CloneDest: "~/.config/themes/x"}, "git pull --ff-only on ~/.config/themes/x"},
-		{manifest.Install{Type: "vscode-ext", Identifier: "x.y"}, "Reinstalling VSCode extension x.y"},
+		{manifest.Install{Type: "vscode-ext", Identifier: "x.y"}, "Reinstalling code extension x.y"},
+		{manifest.Install{Type: "vscode-ext", Identifier: "x.y", CLI: "cursor"}, "Reinstalling cursor extension x.y"},
 		{manifest.Install{Type: "marketplace"}, "Marketplace install — manual update"},
 		{manifest.Install{Type: "manual"}, "Manual install — manual update"},
 		{manifest.Install{Type: "weirdo"}, "Updating"}, // default branch

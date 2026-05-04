@@ -379,6 +379,25 @@ func TestDoVSCodeExt_DryRunSkipsCodeBinary(t *testing.T) {
 	}
 }
 
+func TestVSCodeExtCLI_DefaultsToCode(t *testing.T) {
+	// Empty install.cli → "code". Locks the default so existing
+	// vscode manifests keep shelling out to `code` unchanged.
+	th := manifest.Theme{Install: manifest.Install{Type: "vscode-ext"}}
+	if got := VSCodeExtCLI(th); got != "code" {
+		t.Errorf("default VSCodeExtCLI = %q, want %q", got, "code")
+	}
+}
+
+func TestVSCodeExtCLI_HonorsManifestOverride(t *testing.T) {
+	// Cursor / VSCodium manifests set install.cli explicitly. The
+	// helper must return the manifest value verbatim so the install,
+	// update, and uninstall handlers all shell out to the same binary.
+	th := manifest.Theme{Install: manifest.Install{Type: "vscode-ext", CLI: "cursor"}}
+	if got := VSCodeExtCLI(th); got != "cursor" {
+		t.Errorf("cursor override VSCodeExtCLI = %q, want %q", got, "cursor")
+	}
+}
+
 func TestDoClone_MissingRepoErrors(t *testing.T) {
 	th := manifest.Theme{
 		Theme:   manifest.Meta{Slug: "btop"},
