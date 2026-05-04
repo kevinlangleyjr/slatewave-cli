@@ -6,6 +6,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"sort"
 	"strings"
 
@@ -24,6 +26,54 @@ var EmbeddedManifests embed.FS
 // .toml files from there instead of the embedded set.
 var LocalDir = os.Getenv("SLATEWAVE_MANIFESTS_DIR")
 
+// currentGOOS is a test-overridable indirection for runtime.GOOS so the
+// OS-support helpers can be exercised on any host. Production code should
+// never write to it; tests use SetGOOSForTest.
+var currentGOOS = runtime.GOOS
+
+// SetGOOSForTest swaps the GOOS used by SupportsCurrentOS / DetectCommandFor
+// / VerifyCommandFor and returns a restorer. Call as `defer SetGOOSForTest("windows")()`.
+func SetGOOSForTest(goos string) func() {
+	prev := currentGOOS
+	currentGOOS = goos
+	return func() { currentGOOS = prev }
+}
+
+// defaultSupportedOS is what an unset Meta.SupportedOS resolves to —
+// the pre-Windows behavior every existing manifest had implicitly.
+var defaultSupportedOS = []string{"darwin", "linux"}
+
+// SupportsCurrentOS reports whether the theme's manifest opts in to the
+// current runtime OS. Empty SupportedOS defaults to darwin + linux so
+// existing manifests are unaffected; cross-platform manifests must list
+// "windows" explicitly to be installable on Windows.
+func SupportsCurrentOS(t Theme) bool {
+	osList := t.Theme.SupportedOS
+	if len(osList) == 0 {
+		osList = defaultSupportedOS
+	}
+	return slices.Contains(osList, currentGOOS)
+}
+
+// DetectCommandFor returns the OS-appropriate detect command. On Windows
+// it prefers Meta.DetectCommandWindows when set; otherwise it falls back
+// to Meta.DetectCommand. Lets manifests share one detect across unix and
+// override only when the syntax has to change for cmd.exe.
+func DetectCommandFor(t Theme) string {
+	if currentGOOS == "windows" && t.Theme.DetectCommandWindows != "" {
+		return t.Theme.DetectCommandWindows
+	}
+	return t.Theme.DetectCommand
+}
+
+// VerifyCommandFor mirrors DetectCommandFor for the verify block.
+func VerifyCommandFor(t Theme) string {
+	if currentGOOS == "windows" && t.Verify.CommandWindows != "" {
+		return t.Verify.CommandWindows
+	}
+	return t.Verify.Command
+}
+
 // LoadAll returns every theme manifest, sorted by slug.
 //
 // Resolution order:
@@ -34,6 +84,25 @@ func LoadAll() ([]Theme, error) {
 		return loadFromDir(os.DirFS(LocalDir), ".")
 	}
 	return loadFromDir(EmbeddedManifests, "embedded")
+}
+
+// LoadSupported returns LoadAll filtered to themes that support the
+// current OS. Used by the user-facing enumerators (list, browse, init)
+// where unsupported themes should be invisible. Install/update guards
+// use LoadOne + SupportsCurrentOS instead so they can produce a clean
+// "<name> is not supported on <os>" error using the theme's display name.
+func LoadSupported() ([]Theme, error) {
+	all, err := LoadAll()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Theme, 0, len(all))
+	for _, t := range all {
+		if SupportsCurrentOS(t) {
+			out = append(out, t)
+		}
+	}
+	return out, nil
 }
 
 // LoadOne returns the manifest for a single slug, or os.ErrNotExist if
