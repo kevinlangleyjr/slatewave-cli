@@ -52,7 +52,7 @@ func TestEmbeddedManifests_KnownSlugs(t *testing.T) {
 	}
 	want := []string{
 		// editors
-		"vscode", "cursor", "jetbrains", "sublime-text", "zed", "neovim", "helix", "xcode",
+		"vscode", "cursor", "vscodium", "antigravity", "jetbrains", "sublime-text", "zed", "neovim", "helix", "xcode",
 		// prompts
 		"oh-my-posh", "starship", "powerlevel10k",
 		// terminal emulators

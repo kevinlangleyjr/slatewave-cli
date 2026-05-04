@@ -1,0 +1,27 @@
+[theme]
+slug = "antigravity"
+name = "Slatewave for Antigravity"
+category = "editor"
+# Antigravity is Google's agentic AI IDE (announced November 2025),
+# built on a VSCode fork. Same VSIX extension format and the same
+# `--install-extension` flag, with Open VSX as the default gallery.
+# Cross-platform — macOS, Linux, Windows binaries from antigravity.google.
+supported_os = ["darwin", "linux", "windows"]
+detect_command = "antigravity --version"
+
+[install]
+# `cli = "antigravity"` points the vscode-ext handler at the Antigravity
+# binary. Like VSCodium, Antigravity reads from Open VSX rather than
+# Microsoft's marketplace — the kevinlangleyjr.slatewave package must
+# be on Open VSX for this install to resolve. If you see "extension not
+# found," the Open VSX publication is still pending review.
+type = "vscode-ext"
+cli = "antigravity"
+identifier = "kevinlangleyjr.slatewave"
+
+[activate]
+type = "none"
+
+[verify]
+command = "antigravity --list-extensions"
+expect = "slatewave"
