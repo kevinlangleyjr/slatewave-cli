@@ -7,11 +7,11 @@ package tui
 
 import (
 	"context"
-	"os/exec"
 	"sync"
 	"time"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/shell"
 )
 
 // detectTimeout caps each individual detect_command so a hung shell
@@ -53,10 +53,12 @@ func DetectAll(themes []manifest.Theme, installed map[string]bool) []DetectResul
 }
 
 func detectOne(th manifest.Theme) bool {
-	if th.Theme.DetectCommand == "" {
+	cmd := manifest.DetectCommandFor(th)
+	if cmd == "" {
 		return false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), detectTimeout)
 	defer cancel()
-	return exec.CommandContext(ctx, "sh", "-c", th.Theme.DetectCommand).Run() == nil
+	_, err := shell.Run(ctx, cmd)
+	return err == nil
 }

@@ -1,14 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/shell"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
@@ -172,10 +173,11 @@ func verifyInstalled(th manifest.Theme) bool {
 	if th.Verify.TrustState {
 		return true
 	}
-	if th.Verify.Command == "" {
+	cmd := manifest.VerifyCommandFor(th)
+	if cmd == "" {
 		return true
 	}
-	out, err := exec.Command("sh", "-c", th.Verify.Command).CombinedOutput()
+	out, err := shell.Run(context.Background(), cmd)
 	if err != nil {
 		return false
 	}

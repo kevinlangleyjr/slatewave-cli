@@ -1,9 +1,9 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -14,6 +14,7 @@ import (
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/installer"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/shell"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
@@ -299,7 +300,7 @@ func runUpdateFix(p *tea.Program, f Fix, opts FixOptions) {
 	}
 	if f.Theme.Install.Post != nil && !opts.DryRun {
 		p.Send(fixProgressMsg{slug: slug, state: fixRunning, step: f.Theme.Install.Post.Description})
-		if err := exec.Command("sh", "-c", f.Theme.Install.Post.Command).Run(); err != nil {
+		if err := shell.RunInherit(context.Background(), f.Theme.Install.Post.Command); err != nil {
 			p.Send(fixProgressMsg{slug: slug, state: fixFailed, err: fmt.Errorf("post-hook: %w", err)})
 			return
 		}
