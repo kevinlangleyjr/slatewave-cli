@@ -190,11 +190,17 @@ func doGitconfigInclude(t manifest.Theme, rec *state.Record, opts Options) error
 // The marker comment is `<CommentPrefix> slatewave` — defaulting to
 // "# slatewave" but switchable per manifest so Lua targets get a valid
 // `-- slatewave` comment instead of an invalid `#`.
+//
+// On Windows, files_windows + line_windows are required and replace
+// the unix variants. The activator refuses to fall back to bash-shaped
+// values on Windows so a misconfigured manifest can't silently write
+// `eval "$(starship init zsh)"` into a PowerShell profile.
 func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
-	if t.Activate.Line == "" {
-		return fmt.Errorf("shell-rc activate for %q missing line", t.Theme.Slug)
+	files, line, err := shellRCConfigFor(t)
+	if err != nil {
+		return err
 	}
-	target, err := pickShellRC(t.Activate.Files)
+	target, err := pickShellRC(files)
 	if err != nil {
 		return err
 	}
@@ -204,7 +210,7 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	}
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 	for scanner.Scan() {
-		if strings.TrimSpace(scanner.Text()) == strings.TrimSpace(t.Activate.Line) {
+		if strings.TrimSpace(scanner.Text()) == strings.TrimSpace(line) {
 			return nil // already there
 		}
 	}
@@ -238,11 +244,11 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	// trimmed line content so the manifest doesn't have to reproduce the
 	// user's exact whitespace / trailing comments.
 	if t.Activate.InsertBefore != "" {
-		if updated, ok := spliceBefore(string(data), t.Activate.InsertBefore, marker, t.Activate.Line); ok {
+		if updated, ok := spliceBefore(string(data), t.Activate.InsertBefore, marker, line); ok {
 			if err := os.WriteFile(target, []byte(updated), 0o644); err != nil {
 				return fmt.Errorf("write %s: %w", target, err)
 			}
-			rec.AppendedLine = &state.Appended{File: target, Line: t.Activate.Line}
+			rec.AppendedLine = &state.Appended{File: target, Line: line}
 			return nil
 		}
 		// anchor not found → fall through to append mode
@@ -258,11 +264,33 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
 		prefix = "\n"
 	}
-	if _, err := f.WriteString(prefix + "\n" + marker + "\n" + t.Activate.Line + "\n"); err != nil {
+	if _, err := f.WriteString(prefix + "\n" + marker + "\n" + line + "\n"); err != nil {
 		return fmt.Errorf("append %s: %w", target, err)
 	}
-	rec.AppendedLine = &state.Appended{File: target, Line: t.Activate.Line}
+	rec.AppendedLine = &state.Appended{File: target, Line: line}
 	return nil
+}
+
+// shellRCConfigFor picks the (files, line) pair the shell-rc activator
+// should use for the current OS. On Windows, files_windows + line_windows
+// are required — the activator refuses to fall back to the unix variant
+// because doing so would write bash syntax (`eval "$(starship init zsh)"`)
+// into a PowerShell profile path the unix candidates don't even target.
+// Both fields must be present together; partial config is an authoring
+// mistake worth surfacing.
+func shellRCConfigFor(t manifest.Theme) ([]string, string, error) {
+	if manifest.CurrentGOOS() == "windows" {
+		files := t.Activate.FilesWindows
+		line := t.Activate.LineWindows
+		if len(files) == 0 || line == "" {
+			return nil, "", fmt.Errorf("shell-rc activate for %q on windows requires files_windows and line_windows", t.Theme.Slug)
+		}
+		return files, line, nil
+	}
+	if t.Activate.Line == "" {
+		return nil, "", fmt.Errorf("shell-rc activate for %q missing line", t.Theme.Slug)
+	}
+	return t.Activate.Files, t.Activate.Line, nil
 }
 
 // markerComment builds the marker line written above each appended /

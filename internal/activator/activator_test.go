@@ -572,6 +572,110 @@ func TestActivate_ShellRC_ScaffoldIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestActivate_ShellRC_WindowsUsesWindowsFields covers the load-bearing
+// Phase 5 promise: on Windows the activator picks files_windows /
+// line_windows and ignores the unix variants. Mirrors the unix append
+// test (a fresh "PowerShell profile" file lands the line + marker) but
+// with the OS swapped.
+func TestActivate_ShellRC_WindowsUsesWindowsFields(t *testing.T) {
+	defer manifest.SetGOOSForTest("windows")()
+
+	profile := filepath.Join(t.TempDir(), "Microsoft.PowerShell_profile.ps1")
+
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "starship"},
+		Activate: manifest.Activate{
+			Type:         "shell-rc",
+			Files:        []string{filepath.Join(t.TempDir(), ".zshrc")}, // unix variant — must be ignored
+			Line:         `eval "$(starship init zsh)"`,
+			FilesWindows: []string{profile},
+			LineWindows:  `Invoke-Expression (&starship init powershell)`,
+		},
+	}
+	rec := state.Record{}
+	if err := Activate(th, &rec, Options{}); err != nil {
+		t.Fatalf("Activate on windows: %v", err)
+	}
+	got, err := os.ReadFile(profile)
+	if err != nil {
+		t.Fatalf("profile not written: %v", err)
+	}
+	if !strings.Contains(string(got), "Invoke-Expression (&starship init powershell)") {
+		t.Errorf("windows variant not appended:\n%s", got)
+	}
+	if strings.Contains(string(got), "starship init zsh") {
+		t.Errorf("unix variant leaked into the windows profile:\n%s", got)
+	}
+	if rec.AppendedLine == nil || rec.AppendedLine.File != profile {
+		t.Errorf("AppendedLine should record the windows profile path, got %+v", rec.AppendedLine)
+	}
+}
+
+func TestActivate_ShellRC_WindowsErrorsWhenWindowsFieldsMissing(t *testing.T) {
+	defer manifest.SetGOOSForTest("windows")()
+
+	rc := filepath.Join(t.TempDir(), ".zshrc")
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "starship"},
+		Activate: manifest.Activate{
+			Type:  "shell-rc",
+			Files: []string{rc},
+			Line:  `eval "$(starship init zsh)"`,
+			// FilesWindows / LineWindows deliberately empty — this is the
+			// configuration mistake we want to catch loudly rather than
+			// silently writing bash to a phantom unix path.
+		},
+	}
+	rec := state.Record{}
+	err := Activate(th, &rec, Options{})
+	if err == nil {
+		t.Fatal("Activate on windows without files_windows/line_windows should error")
+	}
+	if !strings.Contains(err.Error(), "windows requires files_windows and line_windows") {
+		t.Errorf("err = %v, want mention of files_windows + line_windows", err)
+	}
+	// The unix file must NOT have been touched as a fallback.
+	if _, statErr := os.Stat(rc); statErr == nil {
+		t.Errorf("activator wrote to unix path %q on windows fallback — guard failed", rc)
+	}
+}
+
+// TestActivate_ShellRC_DarwinIgnoresWindowsFields locks the inverse: a
+// manifest that ships both unix and windows variants must use the unix
+// variant on darwin. Without this test, a regression in the OS branch
+// could silently route every shell-rc activation through the Windows
+// path on every platform.
+func TestActivate_ShellRC_DarwinIgnoresWindowsFields(t *testing.T) {
+	defer manifest.SetGOOSForTest("darwin")()
+
+	rc := filepath.Join(t.TempDir(), ".zshrc")
+	if err := os.WriteFile(rc, []byte("# existing\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "starship"},
+		Activate: manifest.Activate{
+			Type:         "shell-rc",
+			Files:        []string{rc},
+			Line:         `eval "$(starship init zsh)"`,
+			FilesWindows: []string{filepath.Join(t.TempDir(), "should-not-be-written.ps1")},
+			LineWindows:  `Invoke-Expression (&starship init powershell)`,
+		},
+	}
+	rec := state.Record{}
+	if err := Activate(th, &rec, Options{}); err != nil {
+		t.Fatalf("Activate on darwin: %v", err)
+	}
+	got, _ := os.ReadFile(rc)
+	if !strings.Contains(string(got), "starship init zsh") {
+		t.Errorf("unix line missing on darwin:\n%s", got)
+	}
+	if strings.Contains(string(got), "Invoke-Expression") {
+		t.Errorf("windows line leaked into unix rc on darwin:\n%s", got)
+	}
+}
+
 // ----- pickShellRC -----
 
 func TestPickShellRC_PrefersExistingFile(t *testing.T) {
