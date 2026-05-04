@@ -111,6 +111,26 @@ func TestResolveSlugs_UnknownCategoryErrors(t *testing.T) {
 	}
 }
 
+// TestResolveSlugs_BulkFiltersUnsupportedOS asserts that --all on a
+// platform where no manifest opts in returns an empty slug list (the
+// "no themes available" error path). With every embedded manifest
+// defaulting to darwin+linux, simulating windows leaves zero matches.
+func TestResolveSlugs_BulkFiltersUnsupportedOS(t *testing.T) {
+	defer manifest.SetGOOSForTest("windows")()
+
+	prev := installCategory
+	installCategory = ""
+	defer func() { installCategory = prev }()
+
+	_, err := resolveSlugs(nil, true)
+	if err == nil {
+		t.Fatal("on windows with no opted-in manifests, resolveSlugs --all should return `no themes available`")
+	}
+	if !strings.Contains(err.Error(), "no themes available") {
+		t.Errorf("err = %v, want `no themes available`", err)
+	}
+}
+
 // ----- installLabel + activateLabel + doneMessage -----
 
 func TestInstallLabel(t *testing.T) {

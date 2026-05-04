@@ -86,6 +86,12 @@ func resolveSlugs(args []string, bulk bool) ([]string, error) {
 		if installCategory != "" && t.Theme.Category != installCategory {
 			continue
 		}
+		// Themes that don't support the current OS aren't shown in list/
+		// browse, so they shouldn't surface in --all / --category bulk
+		// runs either. Silent skip — the theme was never offered.
+		if !manifest.SupportsCurrentOS(t) {
+			continue
+		}
 		out = append(out, t.Theme.Slug)
 	}
 	if len(out) == 0 {
@@ -122,6 +128,9 @@ func installInteractiveTUI(slugs []string) error {
 		t, err := manifest.LoadOne(slug)
 		if err != nil {
 			return noManifestError(slug)
+		}
+		if !manifest.SupportsCurrentOS(t) {
+			return fmt.Errorf("%s is not supported on %s", t.Theme.Name, manifest.CurrentGOOS())
 		}
 		themes = append(themes, t)
 	}
@@ -219,6 +228,9 @@ func installOne(slug string, suppressFinal bool) error {
 	t, err := manifest.LoadOne(slug)
 	if err != nil {
 		return noManifestError(slug)
+	}
+	if !manifest.SupportsCurrentOS(t) {
+		return fmt.Errorf("%s is not supported on %s", t.Theme.Name, manifest.CurrentGOOS())
 	}
 
 	ui.Header("Installing", t.Theme.Name)

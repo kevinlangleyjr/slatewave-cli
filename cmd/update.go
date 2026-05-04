@@ -106,6 +106,12 @@ func updateInteractiveTUI(args []string, bulk bool) error {
 			ui.Errorf("%s: no manifest — skipping", slug)
 			continue
 		}
+		if !manifest.SupportsCurrentOS(t) {
+			if !bulk {
+				return fmt.Errorf("%s is not supported on %s", t.Theme.Name, manifest.CurrentGOOS())
+			}
+			continue
+		}
 		if t.Install.Type == "marketplace" || t.Install.Type == "manual" {
 			skipped = append(skipped, slug)
 			continue
@@ -144,11 +150,22 @@ func updateBulk() error {
 
 	var slugs []string
 	for _, slug := range s.AllSlugs() {
-		if updateCategory != "" {
-			th, err := manifest.LoadOne(slug)
-			if err != nil || th.Theme.Category != updateCategory {
-				continue
-			}
+		th, err := manifest.LoadOne(slug)
+		if err != nil {
+			// State references a slug we no longer ship a manifest for —
+			// leave it for `slatewave doctor` to surface; bulk update just
+			// skips it silently.
+			continue
+		}
+		if updateCategory != "" && th.Theme.Category != updateCategory {
+			continue
+		}
+		// State.json may have been seeded on a different OS (dual boot,
+		// machine migration). Silently skip themes whose manifest no
+		// longer claims this OS — updateOne would error out per-theme
+		// anyway, and a bulk run shouldn't surface that as a failure.
+		if !manifest.SupportsCurrentOS(th) {
+			continue
 		}
 		slugs = append(slugs, slug)
 	}
@@ -195,6 +212,9 @@ func updateOne(slug string, suppressFinal bool) error {
 	t, err := manifest.LoadOne(slug)
 	if err != nil {
 		return fmt.Errorf("no manifest for %q", slug)
+	}
+	if !manifest.SupportsCurrentOS(t) {
+		return fmt.Errorf("%s is not supported on %s", t.Theme.Name, manifest.CurrentGOOS())
 	}
 
 	s, err := state.Load()

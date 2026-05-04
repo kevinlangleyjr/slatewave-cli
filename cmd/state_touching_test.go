@@ -355,6 +355,36 @@ func TestInstallOne_UnknownSlugReturnsNoManifestError(t *testing.T) {
 	}
 }
 
+// TestInstallOne_BlocksUnsupportedOS asserts the early-return guard:
+// when a manifest doesn't claim the current OS, installOne errors out
+// before any side-effects (no detect, no install, no state record).
+// This is the load-bearing test for the Windows UX promise.
+func TestInstallOne_BlocksUnsupportedOS(t *testing.T) {
+	defer manifest.SetGOOSForTest("windows")()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+
+	err := installOne("okayish", false)
+	if err == nil {
+		t.Fatal("installOne on unsupported OS returned nil err")
+	}
+	if !strings.Contains(err.Error(), "is not supported on windows") {
+		t.Errorf("err = %v, want `is not supported on windows`", err)
+	}
+	// State must not have been touched — the whole point is that the
+	// pipeline never started.
+	s, _ := state.Load()
+	if _, ok := s.Get("okayish"); ok {
+		t.Error("guard failed: pipeline ran and persisted a state record")
+	}
+	// Output must not contain the Header / step output that installOne
+	// would have produced — the error must surface before any UI.
+	if strings.Contains(env.out.String(), "Installing") {
+		t.Errorf("guard fired too late: header was already printed: %q", env.out.String())
+	}
+}
+
 // installBulk skips slugs already in state (re-running --all after a
 // theme is added is a common workflow) and emits a summary line at the end.
 func TestInstallBulk_SkipsAlreadyInstalledAndCounts(t *testing.T) {

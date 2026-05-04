@@ -32,12 +32,20 @@ var LocalDir = os.Getenv("SLATEWAVE_MANIFESTS_DIR")
 var currentGOOS = runtime.GOOS
 
 // SetGOOSForTest swaps the GOOS used by SupportsCurrentOS / DetectCommandFor
-// / VerifyCommandFor and returns a restorer. Call as `defer SetGOOSForTest("windows")()`.
+// / VerifyCommandFor / CurrentGOOS and returns a restorer. Call as
+// `defer SetGOOSForTest("windows")()`.
 func SetGOOSForTest(goos string) func() {
 	prev := currentGOOS
 	currentGOOS = goos
 	return func() { currentGOOS = prev }
 }
+
+// CurrentGOOS returns the OS string the helpers in this package are
+// using. Identical to runtime.GOOS in production; tests override it via
+// SetGOOSForTest. Callsites that build user-facing "<theme> is not
+// supported on <os>" messages should use this so the test override
+// flows into the rendered string.
+func CurrentGOOS() string { return currentGOOS }
 
 // defaultSupportedOS is what an unset Meta.SupportedOS resolves to —
 // the pre-Windows behavior every existing manifest had implicitly.
