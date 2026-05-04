@@ -70,20 +70,30 @@ All platforms can also grab the matching tarball or zip from Releases.
 ## Commands
 
 ```
-slatewave init                          # interactive setup wizard — detect + pick + install
-slatewave browse                        # interactive TUI list with filter, install, uninstall
-slatewave list                          # every theme, with ● / ○ install markers
-slatewave install <theme>               # install + activate one theme
-slatewave install --all                 # install every shipping theme
-slatewave install --category=editor     # install every theme in a category
-slatewave install --interactive <flags> # live progress dashboard instead of streamed steps
-slatewave install <theme> --dry-run     # preview the plan
-slatewave update <theme>                # re-fetch curl assets / git pull clones
-slatewave update --all                  # update every installed theme
-slatewave uninstall <theme>             # reverse files, restore backups, remove appended lines
-slatewave status [theme]                # show install footprint + paths
-slatewave doctor                        # diagnose drift across installed themes (read-only)
-slatewave doctor --fix                  # interactively remediate stale / missing-tool / orphan rows
+slatewave init                            # interactive setup wizard — detect + pick + install
+slatewave browse                          # interactive TUI list with filter, install, uninstall
+slatewave list                            # every theme, with ● / ○ install markers
+slatewave list --category=editor          # only one category
+
+slatewave install <theme>                 # install + activate one theme
+slatewave install --all                   # install every shipping theme
+slatewave install --category=editor       # install every theme in a category
+slatewave install --interactive <flags>   # live progress dashboard instead of streamed steps
+slatewave install <theme> --dry-run       # preview the plan
+
+slatewave update <theme>                  # re-fetch curl assets / git pull clones
+slatewave update --all                    # update every installed theme
+slatewave update --category=editor        # update every installed theme in a category
+slatewave update --interactive <flags>    # live progress dashboard
+
+slatewave uninstall <theme>               # reverse files, restore backups, remove appended lines
+slatewave uninstall --all                 # uninstall every installed theme
+slatewave uninstall --category=editor     # uninstall every installed theme in a category
+slatewave uninstall <theme> --dry-run     # preview the reversal
+
+slatewave status [theme]                  # show install footprint + paths
+slatewave doctor                          # diagnose drift across installed themes (read-only)
+slatewave doctor --fix                    # interactively remediate stale / missing-tool / orphan rows
 ```
 
 First time? Run `slatewave init` — it detects which Slatewave-supported
@@ -102,7 +112,7 @@ actually install.
 
 - **macOS** — every theme except `windows-terminal`
 - **Linux** — every theme except `windows-terminal`
-- **Windows** — `vscode`, `starship`, `oh-my-posh`, and `windows-terminal`. Other themes are hidden from `slatewave list`, `browse`, and shell completion. Trying to install one explicitly errors out with a clean *"<theme> is not supported on windows"* message — no detect runs, no files are written.
+- **Windows** — `vscode`, `cursor`, `starship`, `oh-my-posh`, and `windows-terminal`. Other themes are hidden from `slatewave list`, `browse`, and shell completion. Trying to install one explicitly errors out with a clean *"<theme> is not supported on windows"* message — no detect runs, no files are written.
 
 The Windows-supported set is intentionally small. Each manifest needs its config paths and detect commands explicitly verified under `cmd.exe` and `PowerShell` before opting in to `supported_os = ["windows"]`. Adding a new tool to that list is a manifest-level change, not a CLI release.
 
@@ -146,7 +156,9 @@ key   = "color_theme"
 value = "slatewave"
 ```
 
-The CLI dispatches on `[install].type` (`curl` / `clone` / `vscode-ext` / `marketplace` / `gui-import` / `manual`) and `[activate].type` (`ini-key` / `gitconfig-include` / `shell-rc` / `toml-import` / `none`).
+The CLI dispatches on `[install].type` (`curl` / `clone` / `vscode-ext` / `marketplace` / `gui-import` / `manual`) and `[activate].type` (`ini-key` / `gitconfig-include` / `shell-rc` / `toml-import` / `yaml-set` / `none`).
+
+Manifests can opt in to specific operating systems with `supported_os = ["darwin", "linux", "windows"]` (defaults to `["darwin", "linux"]` when unset). Per-OS overrides exist for paths and commands too — `clone_dest_windows`, `detect_command_windows`, `verify.command_windows`, and `files_windows` / `line_windows` for shell-rc activates targeting PowerShell. The `vscode-ext` install type also accepts a `cli` field (defaults to `code`, set to `cursor` / `codium` / etc. for VSCode forks).
 
 ## Uninstall safety
 
@@ -156,7 +168,7 @@ Every install action is recorded in `~/.config/slatewave/installed.toml` so `sla
 - **Config files the CLI edited** (e.g. `btop.conf`) are restored from a `.bak` made before the edit
 - **Lines appended to shell rc** are removed by exact match, plus the `# slatewave` marker
 - **Gitconfig includes** are unset by path with `git config --global --unset-all`
-- **VSCode extensions** are removed via `code --uninstall-extension`
+- **VSCode-family extensions** (VSCode, Cursor, etc.) are removed via the matching editor CLI: `code --uninstall-extension`, `cursor --uninstall-extension`, etc.
 
 `--dry-run` walks the same plan without writing.
 
