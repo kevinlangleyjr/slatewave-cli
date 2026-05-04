@@ -112,7 +112,7 @@ actually install.
 
 - **macOS** — every theme except `windows-terminal`
 - **Linux** — every theme except `windows-terminal`
-- **Windows** — `vscode`, `cursor`, `starship`, `oh-my-posh`, and `windows-terminal`. Other themes are hidden from `slatewave list`, `browse`, and shell completion. Trying to install one explicitly errors out with a clean *"<theme> is not supported on windows"* message — no detect runs, no files are written.
+- **Windows** — `vscode`, `cursor`, `vscodium`, `antigravity`, `starship`, `oh-my-posh`, and `windows-terminal`. Other themes are hidden from `slatewave list`, `browse`, and shell completion. Trying to install one explicitly errors out with a clean *"<theme> is not supported on windows"* message — no detect runs, no files are written.
 
 The Windows-supported set is intentionally small. Each manifest needs its config paths and detect commands explicitly verified under `cmd.exe` and `PowerShell` before opting in to `supported_os = ["windows"]`. Adding a new tool to that list is a manifest-level change, not a CLI release.
 

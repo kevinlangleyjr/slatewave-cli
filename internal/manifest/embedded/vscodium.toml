@@ -1,0 +1,28 @@
+[theme]
+slug = "vscodium"
+name = "Slatewave for VSCodium"
+category = "editor"
+# VSCodium is the FLOSS rebuild of VSCode — same VSIX format, same
+# `--install-extension` flag, but the Microsoft Marketplace is stripped
+# out so the editor talks to Open VSX (open-vsx.org) instead. Cross-
+# platform.
+supported_os = ["darwin", "linux", "windows"]
+detect_command = "codium --version"
+
+[install]
+# `cli = "codium"` points the vscode-ext handler at the VSCodium binary
+# rather than the default `code`. The kevinlangleyjr.slatewave package
+# has to be on Open VSX for this to resolve — VSCodium intentionally
+# does NOT fall back to the Microsoft Marketplace. If the install errors
+# with "extension not found," the publication is still pending on
+# Open VSX.
+type = "vscode-ext"
+cli = "codium"
+identifier = "kevinlangleyjr.slatewave"
+
+[activate]
+type = "none"
+
+[verify]
+command = "codium --list-extensions"
+expect = "slatewave"
