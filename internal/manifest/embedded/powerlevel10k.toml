@@ -1,0 +1,38 @@
+[theme]
+slug = "powerlevel10k"
+name = "Slatewave for Powerlevel10k"
+category = "terminal"
+# p10k ships as a sourced zsh theme, not a CLI binary — `p10k` is a zsh
+# function only available inside an interactive zsh session. Detect via
+# the install layouts the user is most likely to have: brew, oh-my-zsh
+# custom themes, manual ~/powerlevel10k clone, distro packages.
+detect_command = """
+test -d "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k" \
+|| test -f "$HOME/powerlevel10k/powerlevel10k.zsh-theme" \
+|| test -f /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme \
+|| test -f /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme \
+|| test -f /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme
+"""
+
+[install]
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/p10k-slatewave/main/slatewave.p10k.zsh"
+dest = "$HOME/.config/p10k/slatewave.p10k.zsh"
+instructions = [
+  "Make sure a Nerd Font (MesloLGS NF or Hack Nerd Font Mono) is set in your terminal —",
+  "  the powerline + diamond separators won't render without one.",
+  "  https://www.nerdfonts.com/font-downloads",
+  "Restart your shell or `source ~/.zshrc` to pick up the new prompt.",
+]
+
+[activate]
+type = "shell-rc"
+files = ["~/.zshrc"]
+# The activator appends *after* whatever's already in .zshrc, so this
+# line lands below the user's existing `source .../powerlevel10k.zsh-theme`
+# (and below any `[[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh`). The
+# Slatewave config wins because p10k applies the latest assignments.
+line = '[[ -f ~/.config/p10k/slatewave.p10k.zsh ]] && source ~/.config/p10k/slatewave.p10k.zsh'
+
+[verify]
+command = "test -f ~/.config/p10k/slatewave.p10k.zsh"

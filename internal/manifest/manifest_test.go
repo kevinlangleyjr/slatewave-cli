@@ -53,7 +53,7 @@ func TestEmbeddedManifests_KnownSlugs(t *testing.T) {
 		// editors
 		"vscode", "jetbrains", "sublime-text", "zed", "neovim", "helix", "xcode",
 		// prompts
-		"oh-my-posh", "starship",
+		"oh-my-posh", "starship", "powerlevel10k",
 		// terminal emulators
 		"ghostty", "alacritty", "iterm2", "wezterm", "windows-terminal",
 		// terminal CLI tools
