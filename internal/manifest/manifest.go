@@ -23,11 +23,23 @@ type Meta struct {
 	Name string `toml:"name"`
 	// Category mirrors the website's category enum.
 	Category string `toml:"category"`
+	// SupportedOS lists the runtime.GOOS values this manifest works on.
+	// Empty/unset → defaults to ["darwin", "linux"], preserving the
+	// pre-Windows behavior of every existing manifest. Cross-platform
+	// manifests must opt in to "windows" explicitly so that unaudited
+	// manifests can't accidentally be offered (and fail mid-install)
+	// to Windows users.
+	SupportedOS []string `toml:"supported_os"`
 	// DetectCommand runs to verify the underlying tool is present
 	// before any install action ("bat --version", "btop --version").
 	// If non-zero exit → CLI errors with "<tool> not detected" and
 	// does NOT fall back to installing the tool itself (per design).
 	DetectCommand string `toml:"detect_command"`
+	// DetectCommandWindows overrides DetectCommand on Windows. Empty
+	// → fall back to DetectCommand. Required for manifests whose
+	// unix detect uses POSIX-only forms like `command -v <tool>`;
+	// use `where <tool>` or `<tool> --version` on Windows.
+	DetectCommandWindows string `toml:"detect_command_windows"`
 }
 
 // Install describes how to put the theme files in place.
@@ -117,6 +129,13 @@ type Activate struct {
 	// shell-rc fields
 	Files []string `toml:"files"` // candidate rc files (CLI picks the user's)
 	Line  string   `toml:"line"`
+	// FilesWindows / LineWindows are the PowerShell-profile equivalents,
+	// used when runtime.GOOS == "windows". A shell-rc manifest that
+	// declares supported_os = [..., "windows"] must set both — without
+	// them the activator errors out cleanly rather than appending bash
+	// syntax to a .ps1 file.
+	FilesWindows []string `toml:"files_windows"`
+	LineWindows  string   `toml:"line_windows"`
 	// Scaffold is written verbatim as the full file contents when the
 	// chosen target is missing or empty (whitespace-only). For configs
 	// like wezterm.lua where appending a single line to an empty file
@@ -162,7 +181,11 @@ type YAMLPair struct {
 // install was recorded, no way to check, assume good).
 type Verify struct {
 	Command string `toml:"command"`
-	Expect  string `toml:"expect"` // optional: expected substring in stdout
+	// CommandWindows overrides Command on Windows. Empty → fall back
+	// to Command. Use when the unix verify shells out to `test -f` /
+	// `grep` / etc. and a cmd.exe-parseable equivalent is needed.
+	CommandWindows string `toml:"command_windows"`
+	Expect         string `toml:"expect"` // optional: expected substring in stdout
 	// TrustState short-circuits verify to "always passes if state has the
 	// record." Use for installs where the post-install location is opaque
 	// to us — Alfred imports a .alfredappearance into Alfred's own internal
