@@ -38,12 +38,16 @@ slatewave install bat
 
 ## Install
 
+**macOS / Linux** — via Homebrew:
+
 ```sh
 brew tap kevinlangleyjr/slatewave
 brew install slatewave
 ```
 
-Or from a release binary on the [Releases page](https://github.com/kevinlangleyjr/slatewave-cli/releases).
+**Windows** — download the latest `slatewave_windows_*.zip` from the [Releases page](https://github.com/kevinlangleyjr/slatewave-cli/releases) and put `slatewave.exe` somewhere on `%PATH%`.
+
+All three platforms can also grab the matching binary directly from Releases.
 
 ## Commands
 
@@ -71,6 +75,18 @@ runs the install through a live dashboard.
 Already have themes installed and want to spelunk the catalog? Run
 `slatewave browse` — `↑/↓` to navigate, `/` to filter, `i` / `u` to
 install or uninstall the focused row.
+
+## Platform support
+
+Every manifest declares which OSes it works on, and the CLI filters
+its surface area to match — so you only ever see themes you can
+actually install.
+
+- **macOS** — every theme except `windows-terminal`
+- **Linux** — every theme except `windows-terminal`
+- **Windows** — `vscode`, `starship`, `oh-my-posh`, and `windows-terminal`. Other themes are hidden from `slatewave list`, `browse`, and shell completion. Trying to install one explicitly errors out with a clean *"<theme> is not supported on windows"* message — no detect runs, no files are written.
+
+The Windows-supported set is intentionally small. Each manifest needs its config paths and detect commands explicitly verified under `cmd.exe` and `PowerShell` before opting in to `supported_os = ["windows"]`. Adding a new tool to that list is a manifest-level change, not a CLI release.
 
 ## Shell completions
 
@@ -132,6 +148,7 @@ Every install action is recorded in `~/.config/slatewave/installed.toml` so `sla
 2. **Detection before action.** Every manifest declares a `detect_command` (`bat --version`, `btop --version`); failing detection bails before any filesystem changes.
 3. **Idempotent activates.** `shell-rc` lines and `ini-key` edits no-op if already in place. Re-running `slatewave install bat` after a clean install changes nothing.
 4. **Backups before edits.** Any manifest whose activate type *replaces* an existing config line (`ini-key`) writes a `.slatewave.<timestamp>.bak` first.
+5. **Hide what won't work.** The CLI is OS-aware — themes that don't support the current platform are filtered out of `list`, `browse`, `init`, and tab-completion before the user ever sees them. An explicit `install <slug>` for an unsupported theme errors out before any side-effects.
 
 ## Slatewave family
 
