@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -197,6 +198,15 @@ func TestEmbeddedManifests_FieldsByActivateType(t *testing.T) {
 		case "shell-rc":
 			if len(th.Activate.Files) == 0 || th.Activate.Line == "" {
 				t.Errorf("%s: shell-rc activate missing files/line", slug)
+			}
+			// Manifests that opt in to Windows must also supply the
+			// PowerShell-profile equivalents, otherwise the activator's
+			// "windows requires files_windows + line_windows" guard would
+			// fire at install time. Catching it here turns a runtime
+			// surprise into a build-time canary.
+			if slices.Contains(th.Theme.SupportedOS, "windows") &&
+				(len(th.Activate.FilesWindows) == 0 || th.Activate.LineWindows == "") {
+				t.Errorf("%s: shell-rc activate claims windows support but missing files_windows/line_windows", slug)
 			}
 		case "gitconfig-include":
 			if th.Activate.IncludePath == "" {

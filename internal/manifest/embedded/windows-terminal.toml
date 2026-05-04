@@ -2,9 +2,14 @@
 slug = "windows-terminal"
 name = "Slatewave for Windows Terminal"
 category = "terminal"
-# Windows Terminal is Windows-only. On macOS / Linux this detect fails
-# and the install errors out cleanly with "windows-terminal not detected".
-detect_command = "command -v wt"
+# Windows Terminal is Windows-only — declaring supported_os removes
+# this manifest from `slatewave list` / `browse` / completion on
+# darwin and linux, so non-Windows users don't see a theme they
+# can't install.
+supported_os = ["windows"]
+# `where wt` is the cmd.exe equivalent of `command -v` — exits 0 if
+# the binary resolves on PATH, non-zero otherwise.
+detect_command = "where wt"
 
 [install]
 type = "manual"

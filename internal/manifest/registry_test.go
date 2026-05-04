@@ -109,36 +109,46 @@ func TestVerifyCommandFor_FallbackWhenWindowsEmpty(t *testing.T) {
 	}
 }
 
-func TestLoadSupported_FiltersByCurrentOS(t *testing.T) {
-	// LoadSupported on the embedded set: every manifest defaults to
-	// darwin+linux, so on windows the result should be empty until
-	// individual manifests opt in. This locks the filter behavior
-	// without coupling the test to which manifests later opt in.
+func TestLoadSupported_DarwinReturnsDarwinSupportedOnly(t *testing.T) {
+	// On darwin LoadSupported must include every manifest that defaults
+	// to ["darwin", "linux"] (i.e. the bulk of the embedded set) and
+	// every manifest with darwin in supported_os, but exclude any
+	// windows-only manifest. windows-terminal is the canonical exclude
+	// here — its supported_os is ["windows"], so it ships in LoadAll
+	// but must be filtered out of LoadSupported on darwin.
+	defer SetGOOSForTest("darwin")()
+	got, err := LoadSupported()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, th := range got {
+		if !SupportsCurrentOS(th) {
+			t.Errorf("LoadSupported leaked %s on darwin (SupportedOS=%v)", th.Theme.Slug, th.Theme.SupportedOS)
+		}
+		if th.Theme.Slug == "windows-terminal" {
+			t.Errorf("LoadSupported on darwin returned windows-only theme %q", th.Theme.Slug)
+		}
+	}
+}
+
+func TestLoadSupported_WindowsReturnsOptedInOnly(t *testing.T) {
+	// On windows LoadSupported must include only the manifests that
+	// explicitly list "windows" in supported_os. Every theme in the
+	// returned slice must claim windows; the test doesn't lock the
+	// exact slug list (so adding a fifth windows-supported manifest
+	// later doesn't break this) but it does enforce a non-empty result
+	// and the SupportsCurrentOS invariant.
 	defer SetGOOSForTest("windows")()
 	got, err := LoadSupported()
 	if err != nil {
-		t.Fatalf("LoadSupported: %v", err)
+		t.Fatal(err)
+	}
+	if len(got) == 0 {
+		t.Fatal("expected at least one windows-supported manifest in the embedded set")
 	}
 	for _, th := range got {
 		if !SupportsCurrentOS(th) {
 			t.Errorf("LoadSupported leaked %s on windows (SupportedOS=%v)", th.Theme.Slug, th.Theme.SupportedOS)
 		}
-	}
-}
-
-func TestLoadSupported_DarwinReturnsAll(t *testing.T) {
-	// On darwin every existing manifest is supported (default behavior),
-	// so LoadSupported should match LoadAll one-to-one.
-	defer SetGOOSForTest("darwin")()
-	all, err := LoadAll()
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := LoadSupported()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != len(all) {
-		t.Errorf("on darwin: LoadSupported=%d LoadAll=%d (drift?)", len(got), len(all))
 	}
 }

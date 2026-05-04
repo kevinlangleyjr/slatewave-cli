@@ -111,10 +111,11 @@ func TestResolveSlugs_UnknownCategoryErrors(t *testing.T) {
 	}
 }
 
-// TestResolveSlugs_BulkFiltersUnsupportedOS asserts that --all on a
-// platform where no manifest opts in returns an empty slug list (the
-// "no themes available" error path). With every embedded manifest
-// defaulting to darwin+linux, simulating windows leaves zero matches.
+// TestResolveSlugs_BulkFiltersUnsupportedOS asserts that --all on
+// windows returns only the windows-supported slug set, never any unix-
+// only manifest. Locks the filter behavior — the exact slug list isn't
+// asserted (so adding a fifth windows manifest later doesn't break the
+// test), but the absence of a known unix-only slug is.
 func TestResolveSlugs_BulkFiltersUnsupportedOS(t *testing.T) {
 	defer manifest.SetGOOSForTest("windows")()
 
@@ -122,12 +123,20 @@ func TestResolveSlugs_BulkFiltersUnsupportedOS(t *testing.T) {
 	installCategory = ""
 	defer func() { installCategory = prev }()
 
-	_, err := resolveSlugs(nil, true)
-	if err == nil {
-		t.Fatal("on windows with no opted-in manifests, resolveSlugs --all should return `no themes available`")
+	got, err := resolveSlugs(nil, true)
+	if err != nil {
+		t.Fatalf("resolveSlugs --all on windows: %v", err)
 	}
-	if !strings.Contains(err.Error(), "no themes available") {
-		t.Errorf("err = %v, want `no themes available`", err)
+	if len(got) == 0 {
+		t.Fatal("expected at least the four opted-in windows manifests")
+	}
+	for _, slug := range got {
+		// alfred / iterm2 / xcode / etc. default to darwin+linux and
+		// must never appear in a windows --all result.
+		switch slug {
+		case "alfred", "iterm2", "xcode", "raycast", "ghostty", "powerlevel10k":
+			t.Errorf("unix-only slug %q leaked into windows --all result", slug)
+		}
 	}
 }
 

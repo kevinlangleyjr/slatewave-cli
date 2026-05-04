@@ -2,17 +2,37 @@
 slug = "starship"
 name = "Slatewave for Starship"
 category = "terminal"
+# Starship is a single Rust binary that runs on every major OS and
+# always reads `~/.config/starship.toml` (resolved via os.UserHomeDir
+# on Windows, so `C:\Users\<name>\.config\starship.toml` lands).
+supported_os = ["darwin", "linux", "windows"]
 detect_command = "starship --version"
 
 [install]
 type = "curl"
 url = "https://raw.githubusercontent.com/kevinlangleyjr/starship-slatewave/main/slatewave.toml"
-dest = "$HOME/.config/starship.toml"
+# `~` resolves cross-OS via expandPath; `$HOME` doesn't exist under
+# cmd.exe by default, so prefer the tilde form everywhere.
+dest = "~/.config/starship.toml"
 
 [activate]
 type = "shell-rc"
 files = ["~/.zshrc", "~/.bashrc"]
 line = 'eval "$(starship init zsh)"'
+# PowerShell profile activation. Both candidate paths are tried in
+# order — PowerShell 7 lives under Documents/PowerShell, while older
+# Windows PowerShell 5 uses Documents/WindowsPowerShell. pickShellRC
+# picks the first that exists, falling back to the first candidate
+# (PowerShell 7) when neither does — matching how a fresh PS7 install
+# would expect a profile to be created.
+files_windows = [
+  "~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+  "~/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1",
+]
+line_windows = "Invoke-Expression (&starship init powershell)"
 
 [verify]
 command = "test -f ~/.config/starship.toml"
+# cmd.exe's `if exist` is the closest equivalent to `test -f` and
+# handles both forward slashes and backslashes in the path.
+command_windows = 'if exist "%USERPROFILE%\.config\starship.toml" (exit 0) else (exit 1)'

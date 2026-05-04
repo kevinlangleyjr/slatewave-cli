@@ -2,7 +2,11 @@
 slug = "vscode"
 name = "Slatewave for VSCode"
 category = "editor"
-detect_command = "command -v code"
+# VSCode runs everywhere and so does its `code` CLI. `code --version`
+# replaces the unix-only `command -v code` so the same detect works
+# under cmd /C on Windows.
+supported_os = ["darwin", "linux", "windows"]
+detect_command = "code --version"
 
 [install]
 type = "vscode-ext"
@@ -12,5 +16,8 @@ identifier = "kevinlangleyjr.slatewave"
 type = "none"
 
 [verify]
-command = "code --list-extensions | grep -i slatewave"
+# Drop the `| grep -i` — the engine already does substring matching via
+# Verify.Expect, and that path-free form works under both sh -c and
+# cmd /C without portability concerns.
+command = "code --list-extensions"
 expect = "slatewave"
