@@ -100,7 +100,7 @@ func uninstallDoneMessage(t manifest.Theme) string {
 		return fmt.Sprintf("Reverted. Quit and relaunch %s to see your original colors — running terminals keep the loaded theme in memory.", t.Theme.Name[len("Slatewave for "):])
 	case "btop":
 		return "Reverted. Quit and relaunch `btop` if it's open."
-	case "oh-my-posh", "starship":
+	case "oh-my-posh", "starship", "powerlevel10k":
 		return "Reverted. Restart your shell or `source` your rc file."
 	case "obsidian", "logseq", "markedit":
 		return fmt.Sprintf("Reverted. Restart %s if it's open — the theme is loaded once at launch.", t.Theme.Name[len("Slatewave for "):])

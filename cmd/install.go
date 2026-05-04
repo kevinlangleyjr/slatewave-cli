@@ -335,7 +335,7 @@ func doneMessage(t manifest.Theme) string {
 		return "Launch `btop` to see Slatewave applied."
 	case "delta":
 		return "Run a `git diff` in any repo to see Slatewave applied."
-	case "oh-my-posh", "starship":
+	case "oh-my-posh", "starship", "powerlevel10k":
 		return "Restart your shell or `source` your rc file."
 	}
 	return "Slatewave is installed."

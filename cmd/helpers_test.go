@@ -201,6 +201,7 @@ func TestUninstallDoneMessage(t *testing.T) {
 		{"btop", "Slatewave for btop", "Reverted. Quit and relaunch `btop` if it's open."},
 		{"oh-my-posh", "Slatewave for oh-my-posh", "Reverted. Restart your shell or `source` your rc file."},
 		{"starship", "Slatewave for starship", "Reverted. Restart your shell or `source` your rc file."},
+		{"powerlevel10k", "Slatewave for Powerlevel10k", "Reverted. Restart your shell or `source` your rc file."},
 		{"obsidian", "Slatewave for Obsidian", "Reverted. Restart Obsidian if it's open — the theme is loaded once at launch."},
 		{"logseq", "Slatewave for Logseq", "Reverted. Restart Logseq if it's open — the theme is loaded once at launch."},
 		{"markedit", "Slatewave for MarkEdit", "Reverted. Restart MarkEdit if it's open — the theme is loaded once at launch."},
@@ -226,6 +227,7 @@ func TestDoneMessage(t *testing.T) {
 		{"delta", "Run a `git diff` in any repo to see Slatewave applied."},
 		{"oh-my-posh", "Restart your shell or `source` your rc file."},
 		{"starship", "Restart your shell or `source` your rc file."},
+		{"powerlevel10k", "Restart your shell or `source` your rc file."},
 		{"random-slug", "Slatewave is installed."}, // default branch
 	}
 	for _, c := range cases {
