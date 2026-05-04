@@ -73,6 +73,45 @@ changelog:
       - '^test:'
       - 'Apply go fmt'
 
+# Linux distro packages — built from the same linux/amd64 + linux/arm64
+# binaries the archives use, then attached to the GitHub release. End
+# users grab the matching file from the Releases page and install via
+# their package manager:
+#
+#   sudo dpkg -i slatewave_<version>_linux_amd64.deb     # Debian / Ubuntu
+#   sudo rpm  -i slatewave_<version>_linux_amd64.rpm     # Fedora / RHEL / openSUSE
+#   sudo apk add --allow-untrusted slatewave_<version>_linux_amd64.apk   # Alpine
+#   sudo pacman -U slatewave-<version>-linux_amd64.pkg.tar.zst           # Arch
+#
+# These are unsigned, repo-less artifacts — good enough for "I want a
+# native package on my system" without standing up an apt / yum / AUR
+# repository. Add hosted repos (Cloudsmith, AUR auto-publish) later if
+# install friction becomes a complaint.
+nfpms:
+  - id: slatewave
+    package_name: slatewave
+    vendor: kevinlangleyjr
+    homepage: "https://getslatewave.com"
+    maintainer: "Kevin Langley Jr. <me@kevinlangleyjr.dev>"
+    description: "One palette across every tool you live in — install the Slatewave family from one CLI."
+    license: "WTFPL"
+    formats:
+      - deb
+      - rpm
+      - apk
+      - archlinux
+    # Distro convention: /usr/bin for package-managed binaries.
+    # /usr/local/bin is reserved for sysadmin-managed software outside
+    # the package manager's purview.
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/slatewave/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/slatewave/README.md
+
 # Homebrew tap — each release auto-publishes a formula commit to
 # kevinlangleyjr/homebrew-slatewave. End users then run:
 #

@@ -45,9 +45,27 @@ brew tap kevinlangleyjr/slatewave
 brew install slatewave
 ```
 
+**Linux distros** — native packages on each release:
+
+```sh
+# Debian / Ubuntu
+sudo dpkg -i slatewave_<version>_linux_<arch>.deb
+
+# Fedora / RHEL / openSUSE
+sudo rpm -i slatewave_<version>_linux_<arch>.rpm
+
+# Alpine
+sudo apk add --allow-untrusted slatewave_<version>_linux_<arch>.apk
+
+# Arch
+sudo pacman -U slatewave-<version>-linux_<arch>.pkg.tar.zst
+```
+
+Grab the matching file from the [Releases page](https://github.com/kevinlangleyjr/slatewave-cli/releases). These are unsigned, repo-less artifacts — they install just like a hosted package but you fetch them manually. Hosted apt / rpm / AUR repositories may come later if there's demand.
+
 **Windows** — download the latest `slatewave_windows_*.zip` from the [Releases page](https://github.com/kevinlangleyjr/slatewave-cli/releases) and put `slatewave.exe` somewhere on `%PATH%`.
 
-All three platforms can also grab the matching binary directly from Releases.
+All platforms can also grab the matching tarball or zip from Releases.
 
 ## Commands
 
