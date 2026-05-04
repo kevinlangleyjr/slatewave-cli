@@ -1,15 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/installer"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/shell"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/tui"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
@@ -225,7 +226,7 @@ func updateOne(slug string, suppressFinal bool) error {
 	if t.Install.Post != nil {
 		done := ui.StepStart(t.Install.Post.Description)
 		if !updateDryRun {
-			if err := exec.Command("sh", "-c", t.Install.Post.Command).Run(); err != nil {
+			if err := shell.RunInherit(context.Background(), t.Install.Post.Command); err != nil {
 				done(err)
 				return fmt.Errorf("post-hook: %w", err)
 			}

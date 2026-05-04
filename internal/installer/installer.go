@@ -3,6 +3,7 @@
 package installer
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/shell"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 )
 
@@ -54,12 +56,13 @@ func Install(t manifest.Theme, opts Options) (state.Record, error) {
 // Detect runs the manifest's detect_command; non-zero exit → tool not
 // installed → CLI errors out (does NOT auto-install per design rule).
 func Detect(t manifest.Theme) error {
-	if t.Theme.DetectCommand == "" {
+	cmd := manifest.DetectCommandFor(t)
+	if cmd == "" {
 		return nil // no detect declared → assume present
 	}
-	cmd := exec.Command("sh", "-c", t.Theme.DetectCommand)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%s not detected (run: %s)\n%s", t.Theme.Name, t.Theme.DetectCommand, strings.TrimSpace(string(out)))
+	out, err := shell.Run(context.Background(), cmd)
+	if err != nil {
+		return fmt.Errorf("%s not detected (run: %s)\n%s", t.Theme.Name, cmd, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -107,7 +110,7 @@ func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, err
 		rec.CreatedPaths = append(rec.CreatedPaths, dest)
 	}
 	if t.Install.Post != nil {
-		if err := exec.Command("sh", "-c", t.Install.Post.Command).Run(); err != nil {
+		if err := shell.RunInherit(context.Background(), t.Install.Post.Command); err != nil {
 			return rec, fmt.Errorf("post-hook %q: %w", t.Install.Post.Command, err)
 		}
 	}
@@ -186,7 +189,7 @@ func doClone(t manifest.Theme, rec state.Record, opts Options) (state.Record, er
 	}
 	rec.CreatedPaths = append(rec.CreatedPaths, dest)
 	if t.Install.Post != nil {
-		if err := exec.Command("sh", "-c", t.Install.Post.Command).Run(); err != nil {
+		if err := shell.RunInherit(context.Background(), t.Install.Post.Command); err != nil {
 			return rec, fmt.Errorf("post-hook %q: %w", t.Install.Post.Command, err)
 		}
 	}
