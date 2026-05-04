@@ -30,7 +30,10 @@ command. If a theme was uninstalled outside the CLI (e.g. ` + "`code --uninstall
 from VSCode's UI) the stale state record is dropped and the row renders
 as not-installed. To audit drift without mutating state, use ` + "`slatewave doctor`" + `.`,
 	RunE: func(_ *cobra.Command, _ []string) error {
-		themes, err := manifest.LoadAll()
+		// LoadSupported hides themes that don't claim the current OS.
+		// On Windows the list shrinks to the four manifests that opt
+		// in; on darwin/linux it's identical to LoadAll today.
+		themes, err := manifest.LoadSupported()
 		if err != nil {
 			return fmt.Errorf("load manifests: %w", err)
 		}

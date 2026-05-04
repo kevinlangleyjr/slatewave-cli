@@ -35,7 +35,7 @@ func init() {
 }
 
 func runBrowse(_ *cobra.Command, _ []string) error {
-	themes, err := manifest.LoadAll()
+	themes, err := manifest.LoadSupported()
 	if err != nil {
 		return fmt.Errorf("load manifests: %w", err)
 	}

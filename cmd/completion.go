@@ -9,13 +9,15 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 )
 
-// validInstallArgs completes from every manifest slug. Used by
-// `install` since the user can install anything in the family.
+// validInstallArgs completes from every manifest slug supported on the
+// current OS. Suggesting an unsupported slug would lead the user into
+// an immediate "is not supported on <os>" error — better to leave it
+// out of completion entirely.
 func validInstallArgs(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	all, err := manifest.LoadAll()
+	all, err := manifest.LoadSupported()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
@@ -50,9 +52,10 @@ func validInstalledArgs(_ *cobra.Command, args []string, toComplete string) ([]s
 
 // validCategories completes the --category flag with the manifest
 // schema's category enum, narrowed to categories actually present in
-// the embedded set (so suggestions are never dead-ends).
+// the OS-supported set (so a category with zero installable themes on
+// the current OS doesn't get suggested as a dead-end).
 func validCategories(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	all, err := manifest.LoadAll()
+	all, err := manifest.LoadSupported()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}

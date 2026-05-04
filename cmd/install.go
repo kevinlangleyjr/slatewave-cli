@@ -77,19 +77,16 @@ func resolveSlugs(args []string, bulk bool) ([]string, error) {
 	if !bulk {
 		return []string{args[0]}, nil
 	}
-	all, err := manifest.LoadAll()
+	// LoadSupported drops themes that don't claim the current OS so
+	// --all / --category bulk runs never surface a theme the user was
+	// never offered in `list` or `browse`.
+	all, err := manifest.LoadSupported()
 	if err != nil {
 		return nil, fmt.Errorf("load manifests: %w", err)
 	}
 	var out []string
 	for _, t := range all {
 		if installCategory != "" && t.Theme.Category != installCategory {
-			continue
-		}
-		// Themes that don't support the current OS aren't shown in list/
-		// browse, so they shouldn't surface in --all / --category bulk
-		// runs either. Silent skip — the theme was never offered.
-		if !manifest.SupportsCurrentOS(t) {
 			continue
 		}
 		out = append(out, t.Theme.Slug)
