@@ -55,7 +55,7 @@ func TestEmbeddedManifests_KnownSlugs(t *testing.T) {
 		// prompts
 		"oh-my-posh", "starship", "powerlevel10k",
 		// terminal emulators
-		"ghostty", "alacritty", "iterm2", "wezterm", "windows-terminal",
+		"ghostty", "alacritty", "iterm2", "wezterm", "windows-terminal", "kitty",
 		// terminal CLI tools
 		"bat", "delta", "lsd",
 		// multiplexer
