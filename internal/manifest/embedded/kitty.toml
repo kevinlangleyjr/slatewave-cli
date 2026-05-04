@@ -1,0 +1,51 @@
+[theme]
+slug = "kitty"
+name = "Slatewave for kitty"
+category = "terminal"
+# `command -v kitty` works on Linux and on macOS when the in-bundle
+# launcher is symlinked to /usr/local/bin (kitty's recommended install).
+# On a stock macOS Drag-to-/Applications install where no symlink exists,
+# fall through to checking the .app bundle.
+detect_command = "command -v kitty || test -d /Applications/kitty.app"
+
+# Default to the "Slatewave Full" experience: palette + Hack Nerd Font Mono
+# + non-blinking block cursor + opaque, unblurred window. slatewave-full.conf
+# does `include slatewave.conf`, so we have to drop slatewave.conf next to
+# it as a dependency. Both files land in ~/.config/kitty/ where kitty.conf's
+# include resolver picks them up.
+[install]
+type = "curl"
+# Hack Nerd Font Mono is the only out-of-band dependency — slatewave-full
+# pins it via `font_family Hack Nerd Font Mono`, and kitty silently falls
+# back to its default monospace if the font isn't installed.
+instructions = [
+  "Install Hack Nerd Font Mono if you haven't — slatewave-full pins the font for icon glyph alignment.",
+  "  https://www.nerdfonts.com/font-downloads (pick the Mono variant)",
+  "Reload kitty to pick up the new theme + font (cmd+ctrl+, on macOS, ctrl+shift+F5 on Linux/Windows).",
+]
+
+[[install.files]]
+url = "https://raw.githubusercontent.com/kevinlangleyjr/kitty-slatewave/main/slatewave-full.conf"
+dest = "$HOME/.config/kitty/slatewave-full.conf"
+[[install.files]]
+url = "https://raw.githubusercontent.com/kevinlangleyjr/kitty-slatewave/main/slatewave.conf"
+dest = "$HOME/.config/kitty/slatewave.conf"
+
+[activate]
+type = "shell-rc"
+files = ["~/.config/kitty/kitty.conf"]
+# kitty's `include` resolves relative to the directory of the file doing
+# the include, so a bare filename works since both confs land in the same
+# ~/.config/kitty/ directory.
+line = "include slatewave-full.conf"
+# When kitty.conf is missing or empty, scaffold writes a minimal config so
+# the include is the only line. shell-rc append-mode would also work for
+# kitty (no halting control flow like Lua's `return config`), but scaffold
+# leaves cleaner ownership: uninstall removes the file we created instead
+# of trying to splice a single line out of a user-authored file.
+scaffold = """
+include slatewave-full.conf
+"""
+
+[verify]
+command = "test -f ~/.config/kitty/slatewave-full.conf && test -f ~/.config/kitty/slatewave.conf"
