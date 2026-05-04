@@ -198,6 +198,19 @@ func doClone(t manifest.Theme, rec state.Record, opts Options) (state.Record, er
 
 // ----- type: vscode-ext -----
 
+// VSCodeExtCLI returns the binary the vscode-ext handlers should shell
+// out to — whatever the manifest declared in `install.cli`, or "code"
+// when unset. Cursor manifests set this to "cursor", VSCodium to
+// "codium", etc. All three accept the same --install-extension /
+// --list-extensions / --uninstall-extension flags, so the binary name
+// is the only thing that varies.
+func VSCodeExtCLI(t manifest.Theme) string {
+	if t.Install.CLI != "" {
+		return t.Install.CLI
+	}
+	return "code"
+}
+
 func doVSCodeExt(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
 	if t.Install.Identifier == "" {
 		return rec, fmt.Errorf("vscode-ext install for %q has no install.identifier", t.Theme.Slug)
@@ -205,10 +218,11 @@ func doVSCodeExt(t manifest.Theme, rec state.Record, opts Options) (state.Record
 	if opts.DryRun {
 		return rec, nil
 	}
-	cmd := exec.Command("code", "--install-extension", t.Install.Identifier)
+	cli := VSCodeExtCLI(t)
+	cmd := exec.Command(cli, "--install-extension", t.Install.Identifier)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return rec, fmt.Errorf("code --install-extension %s: %w\n%s", t.Install.Identifier, err, out)
+		return rec, fmt.Errorf("%s --install-extension %s: %w\n%s", cli, t.Install.Identifier, err, out)
 	}
 	return rec, nil
 }

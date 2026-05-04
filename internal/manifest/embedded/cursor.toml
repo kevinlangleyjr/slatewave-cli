@@ -1,0 +1,25 @@
+[theme]
+slug = "cursor"
+name = "Slatewave for Cursor"
+category = "editor"
+# Cursor is a VSCode fork — `cursor --version` is the Cursor-specific
+# variant of the same flag VSCode and VSCodium ship. Cross-platform.
+supported_os = ["darwin", "linux", "windows"]
+detect_command = "cursor --version"
+
+[install]
+# Cursor uses the same VSIX extension format as VSCode and the same
+# Microsoft Marketplace gallery, so the canonical kevinlangleyjr.slatewave
+# extension installs into Cursor unchanged. The `cli = "cursor"` tells
+# the installer to shell out to `cursor --install-extension` instead of
+# the default `code --install-extension`.
+type = "vscode-ext"
+cli = "cursor"
+identifier = "kevinlangleyjr.slatewave"
+
+[activate]
+type = "none"
+
+[verify]
+command = "cursor --list-extensions"
+expect = "slatewave"

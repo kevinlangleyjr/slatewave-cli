@@ -302,7 +302,7 @@ func installLabel(t manifest.Theme) string {
 	case "clone":
 		return "Cloning " + t.Install.Repo
 	case "vscode-ext":
-		return "Installing VSCode extension " + t.Install.Identifier
+		return fmt.Sprintf("Installing %s extension %s", installer.VSCodeExtCLI(t), t.Install.Identifier)
 	case "marketplace":
 		return "Opening Marketplace in your browser"
 	case "gui-import":

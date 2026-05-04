@@ -117,9 +117,10 @@ func reinstallVSCodeExt(t manifest.Theme, opts Options) error {
 	if opts.DryRun {
 		return nil
 	}
-	cmd := exec.Command("code", "--install-extension", t.Install.Identifier, "--force")
+	cli := VSCodeExtCLI(t)
+	cmd := exec.Command(cli, "--install-extension", t.Install.Identifier, "--force")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("code --install-extension --force: %w\n%s", err, out)
+		return fmt.Errorf("%s --install-extension --force: %w\n%s", cli, err, out)
 	}
 	return nil
 }

@@ -80,6 +80,13 @@ type Install struct {
 
 	// vscode-ext-specific
 	Identifier string `toml:"identifier"` // e.g. "kevinlangleyjr.slatewave"
+	// CLI overrides which binary the vscode-ext handler shells out to.
+	// Defaults to "code" (VSCode and most VSCode-derived editors honor
+	// `code` as a symlink). Set to "cursor" for Cursor, "codium" for
+	// VSCodium, etc. — every editor in the family accepts the same
+	// `--install-extension <id>` / `--list-extensions` / `--uninstall-extension <id>`
+	// flags, so the only thing that varies is the binary name.
+	CLI string `toml:"cli"`
 
 	// manual-specific
 	Instructions []string `toml:"instructions"`
