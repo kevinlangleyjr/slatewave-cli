@@ -12,9 +12,9 @@ detect_command = "antigravity --version"
 [install]
 # `cli = "antigravity"` points the vscode-ext handler at the Antigravity
 # binary. Like VSCodium, Antigravity reads from Open VSX rather than
-# Microsoft's marketplace — the kevinlangleyjr.slatewave package must
-# be on Open VSX for this install to resolve. If you see "extension not
-# found," the Open VSX publication is still pending review.
+# Microsoft's marketplace — the package is published at
+# https://open-vsx.org/extension/kevinlangleyjr/slatewave so the install
+# resolves directly with no marketplace switching required.
 type = "vscode-ext"
 cli = "antigravity"
 identifier = "kevinlangleyjr.slatewave"
