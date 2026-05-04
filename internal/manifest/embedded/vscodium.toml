@@ -11,11 +11,10 @@ detect_command = "codium --version"
 
 [install]
 # `cli = "codium"` points the vscode-ext handler at the VSCodium binary
-# rather than the default `code`. The kevinlangleyjr.slatewave package
-# has to be on Open VSX for this to resolve — VSCodium intentionally
-# does NOT fall back to the Microsoft Marketplace. If the install errors
-# with "extension not found," the publication is still pending on
-# Open VSX.
+# rather than the default `code`. The package is published to Open VSX
+# at https://open-vsx.org/extension/kevinlangleyjr/slatewave, which is
+# where VSCodium reads from by default (it intentionally does NOT fall
+# back to the Microsoft Marketplace).
 type = "vscode-ext"
 cli = "codium"
 identifier = "kevinlangleyjr.slatewave"
