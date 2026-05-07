@@ -19,8 +19,10 @@ type = "clone"
 repo = "https://github.com/kevinlangleyjr/obsidian-slatewave.git"
 clone_dest = "$HOME/.local/share/obsidian-slatewave"
 instructions = [
-  "Copy or symlink the theme into your vault:",
-  "    cp -R ~/.local/share/obsidian-slatewave <vault>/.obsidian/themes/Slatewave",
+  "Link the theme files into your vault's themes directory:",
+  "    mkdir -p <vault>/.obsidian/themes/Slatewave",
+  "    ln -s ~/.local/share/obsidian-slatewave/theme.css <vault>/.obsidian/themes/Slatewave/theme.css",
+  "    ln -s ~/.local/share/obsidian-slatewave/manifest.json <vault>/.obsidian/themes/Slatewave/manifest.json",
   "In Obsidian, open Settings → Appearance → Themes → select Slatewave",
 ]
 
