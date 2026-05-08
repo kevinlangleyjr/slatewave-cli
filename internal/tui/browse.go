@@ -120,7 +120,11 @@ func (m browseModel) Init() tea.Cmd { return nil }
 func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.list.SetSize(msg.Width, msg.Height)
+		// Reserve rows for the embedded banner header. View() prepends
+		// ui.Banner() + a blank-line separator, so the list gets
+		// whatever's left under that.
+		listHeight := max(msg.Height-ui.BannerHeight-1, 1)
+		m.list.SetSize(msg.Width, listHeight)
 		return m, nil
 	case tea.KeyMsg:
 		// While the user is typing into the / filter, every key is for the filter — don't intercept i/u.
@@ -146,7 +150,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m browseModel) View() string {
-	return m.list.View()
+	return ui.Banner() + "\n\n" + m.list.View()
 }
 
 // RunBrowse opens the interactive theme browser. Returns the action the user picked, or BrowseNone if they quit without acting. detected maps slug → tool present? — pass an empty map to skip the tool-not-detected hint (e.g., in tests).

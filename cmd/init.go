@@ -35,6 +35,8 @@ func init() {
 }
 
 func runInit(_ *cobra.Command, _ []string) error {
+	ui.PrintBanner()
+
 	themes, err := manifest.LoadSupported()
 	if err != nil {
 		return fmt.Errorf("load manifests: %w", err)

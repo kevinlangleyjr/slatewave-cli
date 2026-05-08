@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
 func TestBrowseItem_TitleHasMarkerForInstalledAndNot(t *testing.T) {
@@ -166,8 +167,11 @@ func TestBrowseModel_WindowSizeMsgResizesList(t *testing.T) {
 	m := newBrowseModel([]manifest.Theme{stubTheme("bat", "editor", "true")}, nil, nil)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = updated.(browseModel)
-	if m.list.Width() != 80 || m.list.Height() != 24 {
-		t.Errorf("list size = %dx%d, want 80x24", m.list.Width(), m.list.Height())
+	// The browse View() prepends ui.Banner() + a blank-line separator,
+	// so the list height is shrunk by BannerHeight+1 from the window.
+	wantHeight := 24 - ui.BannerHeight - 1
+	if m.list.Width() != 80 || m.list.Height() != wantHeight {
+		t.Errorf("list size = %dx%d, want 80x%d", m.list.Width(), m.list.Height(), wantHeight)
 	}
 }
 
