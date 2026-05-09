@@ -93,27 +93,36 @@ func Uninstall(rec state.Record, t manifest.Theme, opts Options) error {
 
 	// Type-specific reversals — for installs that didn't write to disk
 	// directly (e.g., vscode-ext shells out to `code --install-extension`).
-	switch t.Install.Type {
-	case "vscode-ext":
-		if t.Install.Identifier == "" || opts.DryRun {
-			break
-		}
-		cli := VSCodeExtCLI(t)
-		cmd := exec.Command(cli, "--uninstall-extension", t.Install.Identifier)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			// If the extension was already removed externally (via the
-			// editor's own UI, for example), `--uninstall-extension`
-			// errors with "Extension '<id>' is not installed." Treat
-			// that as success so `slatewave uninstall` cleanly reconciles
-			// state with reality.
-			if strings.Contains(string(out), "is not installed") {
-				return nil
-			}
-			return fmt.Errorf("%s --uninstall-extension %s: %w\n%s", cli, t.Install.Identifier, err, out)
+	// Registry's uninstallExtra hook fires here when set; types whose
+	// install left only CreatedPaths / Backups / AppendedLine behind
+	// (curl, clone, gui-import, marketplace, manual) need nothing more.
+	if impl, ok := installers[t.Install.Type]; ok && impl.uninstallExtra != nil {
+		if err := impl.uninstallExtra(rec, t, opts); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+// uninstallVSCodeExt is the vscode-ext type's uninstallExtra hook —
+// shells out to `code --uninstall-extension <id>` (or whichever CLI
+// the manifest declared). Treats "is not installed" as success since
+// the user may have removed the extension via the editor's UI before
+// running slatewave uninstall.
+func uninstallVSCodeExt(_ state.Record, t manifest.Theme, opts Options) error {
+	if t.Install.Identifier == "" || opts.DryRun {
+		return nil
+	}
+	cli := VSCodeExtCLI(t)
+	cmd := exec.Command(cli, "--uninstall-extension", t.Install.Identifier)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if strings.Contains(string(out), "is not installed") {
+			return nil
+		}
+		return fmt.Errorf("%s --uninstall-extension %s: %w\n%s", cli, t.Install.Identifier, err, out)
+	}
 	return nil
 }
 

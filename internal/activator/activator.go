@@ -36,25 +36,33 @@ type Options struct {
 	DryRun bool
 }
 
+// activatorFn is the per-type activator handler signature. nil means
+// "explicit no-op" (the install step also activates) — present in the
+// map so the unknown-type error path can distinguish "no work needed"
+// from "manifest typo".
+type activatorFn func(t manifest.Theme, rec *state.Record, opts Options) error
+
+var activators = map[string]activatorFn{
+	"":                  nil, // unset → no separate activate step
+	"none":              nil, // explicit "install also activates"
+	"ini-key":           doIniKey,
+	"gitconfig-include": doGitconfigInclude,
+	"shell-rc":          doShellRC,
+	"toml-import":       doTOMLImport,
+	"yaml-set":          doYAMLSet,
+}
+
 // Activate runs the activate step for theme t. Mutates rec in place to
 // record reversal info (backups, appended lines).
 func Activate(t manifest.Theme, rec *state.Record, opts Options) error {
-	switch t.Activate.Type {
-	case "", "none":
-		return nil
-	case "ini-key":
-		return doIniKey(t, rec, opts)
-	case "gitconfig-include":
-		return doGitconfigInclude(t, rec, opts)
-	case "shell-rc":
-		return doShellRC(t, rec, opts)
-	case "toml-import":
-		return doTOMLImport(t, rec, opts)
-	case "yaml-set":
-		return doYAMLSet(t, rec, opts)
-	default:
+	impl, ok := activators[t.Activate.Type]
+	if !ok {
 		return fmt.Errorf("unknown activate type %q for theme %q", t.Activate.Type, t.Theme.Slug)
 	}
+	if impl == nil {
+		return nil
+	}
+	return impl(t, rec, opts)
 }
 
 // ----- type: ini-key -----
