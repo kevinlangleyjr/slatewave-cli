@@ -286,6 +286,38 @@ func TestUninstall_RestoresBackup(t *testing.T) {
 	}
 }
 
+// Restore round-trip: the .bak captured the user's pre-install mode,
+// so writing the original back must use that mode rather than the
+// activated file's (or a hardcoded 0o644). Pairs with the activator's
+// preservedMode test on the install side.
+func TestUninstall_RestoreUsesBackupFileMode(t *testing.T) {
+	dir := t.TempDir()
+	original := filepath.Join(dir, "secrets.conf")
+	backup := filepath.Join(dir, "secrets.conf.bak")
+	// Activated file (currently on disk) is whatever mode — say 0o644.
+	if err := os.WriteFile(original, []byte("activated\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Backup carries the user's pre-install mode (0o600 — paranoid setup).
+	if err := os.WriteFile(backup, []byte("pre-install\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rec := state.Record{
+		Slug: "x", InstallType: "curl", ActivateType: "ini-key",
+		Backups: []state.Backup{{Original: original, Path: backup}},
+	}
+	if err := Uninstall(rec, stubTheme("x", "curl"), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("restored file mode = %o, want 0o600 (restore widened user's mode)", got)
+	}
+}
+
 func TestUninstall_DryRunMakesNoChanges(t *testing.T) {
 	dir := t.TempDir()
 	created := filepath.Join(dir, "Slatewave.tmTheme")

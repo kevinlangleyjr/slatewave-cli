@@ -107,6 +107,7 @@ func doIniKey(t manifest.Theme, rec *state.Record, opts Options) error {
 		return nil
 	}
 
+	mode := preservedMode(file)
 	if !fileExists {
 		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
 			return fmt.Errorf("create parent dir: %w", err)
@@ -119,7 +120,7 @@ func doIniKey(t manifest.Theme, rec *state.Record, opts Options) error {
 		}
 		rec.Backups = append(rec.Backups, state.Backup{Original: file, Path: backup})
 	}
-	return os.WriteFile(file, []byte(updated), 0o644)
+	return os.WriteFile(file, []byte(updated), mode)
 }
 
 // quoteIfNeeded wraps a value in double-quotes if it contains spaces
@@ -233,7 +234,7 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 		if !strings.HasSuffix(content, "\n") {
 			content += "\n"
 		}
-		if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(target, []byte(content), preservedMode(target)); err != nil {
 			return fmt.Errorf("write scaffold %s: %w", target, err)
 		}
 		rec.CreatedPaths = append(rec.CreatedPaths, target)
@@ -245,7 +246,7 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	// user's exact whitespace / trailing comments.
 	if t.Activate.InsertBefore != "" {
 		if updated, ok := spliceBefore(string(data), t.Activate.InsertBefore, marker, line); ok {
-			if err := os.WriteFile(target, []byte(updated), 0o644); err != nil {
+			if err := os.WriteFile(target, []byte(updated), preservedMode(target)); err != nil {
 				return fmt.Errorf("write %s: %w", target, err)
 			}
 			rec.AppendedLine = &state.Appended{File: target, Line: line}
@@ -425,6 +426,7 @@ func doTOMLImport(t manifest.Theme, rec *state.Record, opts Options) error {
 		return fmt.Errorf("create parent dir: %w", err)
 	}
 
+	mode := preservedMode(file)
 	// Back up if the file existed; nothing to back up if we're creating.
 	if len(data) > 0 {
 		backup, err := backupFile(file)
@@ -437,7 +439,7 @@ func doTOMLImport(t manifest.Theme, rec *state.Record, opts Options) error {
 		rec.CreatedPaths = append(rec.CreatedPaths, file)
 	}
 
-	return os.WriteFile(file, []byte(updated), 0o644)
+	return os.WriteFile(file, []byte(updated), mode)
 }
 
 // tomlImportRewrite returns the rewritten config text and whether
@@ -531,6 +533,7 @@ func doYAMLSet(t manifest.Theme, rec *state.Record, opts Options) error {
 		return nil
 	}
 
+	mode := preservedMode(file)
 	if !fileExists {
 		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
 			return fmt.Errorf("create parent dir: %w", err)
@@ -543,7 +546,7 @@ func doYAMLSet(t manifest.Theme, rec *state.Record, opts Options) error {
 		}
 		rec.Backups = append(rec.Backups, state.Backup{Original: file, Path: backup})
 	}
-	return os.WriteFile(file, []byte(updated), 0o644)
+	return os.WriteFile(file, []byte(updated), mode)
 }
 
 // yamlSetRewrite returns the rewritten YAML content and whether anything
@@ -704,7 +707,10 @@ func expandPath(p string) (string, error) {
 }
 
 // backupFile copies file to <file>.slatewave.<timestamp>.bak and
-// returns the backup path.
+// returns the backup path. The backup matches the source file's mode
+// so a restore round-trips correctly — if the user had ~/.gitconfig
+// at 0o600 (paranoid setup, secrets in [user]), the .bak is 0o600 and
+// uninstall lands them back at 0o600 instead of silently world-readable.
 func backupFile(file string) (string, error) {
 	ts := time.Now().UTC().Format("20060102T150405")
 	backup := fmt.Sprintf("%s.slatewave.%s.bak", file, ts)
@@ -712,8 +718,25 @@ func backupFile(file string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read for backup: %w", err)
 	}
-	if err := os.WriteFile(backup, src, 0o644); err != nil {
+	if err := os.WriteFile(backup, src, preservedMode(file)); err != nil {
 		return "", fmt.Errorf("write backup: %w", err)
 	}
 	return backup, nil
+}
+
+// preservedMode returns the user's existing file mode so a rewrite
+// doesn't silently downgrade it. Returns 0o644 when file doesn't
+// exist (the caller is creating it fresh — readable-by-others matches
+// the convention for unix config files).
+//
+// Used at every site that overwrites a user-owned file: if their
+// ~/.gitconfig is 0o600 because [user].signingkey or [credential] is
+// in there, our activate step has to preserve that mode rather than
+// downgrade to a world-readable 0o644.
+func preservedMode(file string) os.FileMode {
+	info, err := os.Stat(file)
+	if err != nil {
+		return 0o644
+	}
+	return info.Mode().Perm()
 }
