@@ -778,6 +778,50 @@ func TestPickShellRC_EmptyCandidatesErrors(t *testing.T) {
 	}
 }
 
+// Regression: SHELL=/bin/sh used to match BOTH .bashrc and .zshrc via
+// strings.Contains(strings.ToLower(path), "sh"). The exact-basename map
+// resolves "sh" to no entry (we don't ship a generic-sh rc file), so we
+// fall through to the first candidate cleanly instead of silently
+// routing to whichever .*sh*-named file came first.
+func TestPickShellRC_PlainShDoesNotMatchZshOrBashByContains(t *testing.T) {
+	dir := t.TempDir()
+	bashrc := filepath.Join(dir, ".bashrc")
+	zshrc := filepath.Join(dir, ".zshrc")
+	// Neither created — force the SHELL fallback path.
+
+	t.Setenv("SHELL", "/bin/sh")
+	got, err := pickShellRC([]string{zshrc, bashrc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// SHELL=sh isn't in shellRCBasename, so we fall back to the first
+	// candidate. Important: we DON'T silently match .zshrc just because
+	// "sh" is a substring of "zsh".
+	if got != zshrc {
+		t.Errorf("SHELL=sh: pickShellRC = %q, want first-candidate fallback %q", got, zshrc)
+	}
+}
+
+// Bash fallback: SHELL=/bin/bash with both candidates missing must
+// pick .bashrc, not the first candidate. Pre-fix this worked
+// accidentally — strings.Contains "bash" matched ".bashrc" (true) but
+// also ".zshrc" (false), so order in the slice didn't matter. Post-fix
+// we want the same behavior driven by the explicit map.
+func TestPickShellRC_BashShellPicksBashrcEvenWhenZshrcIsFirst(t *testing.T) {
+	dir := t.TempDir()
+	zshrc := filepath.Join(dir, ".zshrc")
+	bashrc := filepath.Join(dir, ".bashrc")
+
+	t.Setenv("SHELL", "/bin/bash")
+	got, err := pickShellRC([]string{zshrc, bashrc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != bashrc {
+		t.Errorf("SHELL=bash: pickShellRC = %q, want %q", got, bashrc)
+	}
+}
+
 // ----- toml-import activator -----
 
 func TestTOMLImportRewrite_AddsToExistingArray(t *testing.T) {
