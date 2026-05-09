@@ -17,7 +17,19 @@ import (
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/verbose"
 )
+
+// writeFileLogged is a thin wrapper around os.WriteFile that emits a
+// verbose log line for the activator's many config-file rewrites. The
+// activator doesn't go through installer.writeAtomic (atomicity work
+// is Phase 2's scope; this is observability only), so wrapping at the
+// callsite keeps the verbose narrative consistent across packages
+// without coupling activator to installer.
+func writeFileLogged(path string, data []byte, mode os.FileMode) error {
+	verbose.Log("write: %s (mode %o)", path, mode)
+	return os.WriteFile(path, data, mode)
+}
 
 // Options controls activator behavior.
 type Options struct {
@@ -120,7 +132,7 @@ func doIniKey(t manifest.Theme, rec *state.Record, opts Options) error {
 		}
 		rec.Backups = append(rec.Backups, state.Backup{Original: file, Path: backup})
 	}
-	return os.WriteFile(file, []byte(updated), mode)
+	return writeFileLogged(file, []byte(updated), mode)
 }
 
 // quoteIfNeeded wraps a value in double-quotes if it contains spaces
@@ -234,7 +246,7 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 		if !strings.HasSuffix(content, "\n") {
 			content += "\n"
 		}
-		if err := os.WriteFile(target, []byte(content), preservedMode(target)); err != nil {
+		if err := writeFileLogged(target, []byte(content), preservedMode(target)); err != nil {
 			return fmt.Errorf("write scaffold %s: %w", target, err)
 		}
 		rec.CreatedPaths = append(rec.CreatedPaths, target)
@@ -246,7 +258,7 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	// user's exact whitespace / trailing comments.
 	if t.Activate.InsertBefore != "" {
 		if updated, ok := spliceBefore(string(data), t.Activate.InsertBefore, marker, line); ok {
-			if err := os.WriteFile(target, []byte(updated), preservedMode(target)); err != nil {
+			if err := writeFileLogged(target, []byte(updated), preservedMode(target)); err != nil {
 				return fmt.Errorf("write %s: %w", target, err)
 			}
 			rec.AppendedLine = &state.Appended{File: target, Line: line}
@@ -256,6 +268,7 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	}
 
 	// Mode 3: append.
+	verbose.Log("append: %s", target)
 	f, err := os.OpenFile(target, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", target, err)
@@ -459,7 +472,7 @@ func doTOMLImport(t manifest.Theme, rec *state.Record, opts Options) error {
 		rec.CreatedPaths = append(rec.CreatedPaths, file)
 	}
 
-	return os.WriteFile(file, []byte(updated), mode)
+	return writeFileLogged(file, []byte(updated), mode)
 }
 
 // tomlImportRewrite returns the rewritten config text and whether
@@ -566,7 +579,7 @@ func doYAMLSet(t manifest.Theme, rec *state.Record, opts Options) error {
 		}
 		rec.Backups = append(rec.Backups, state.Backup{Original: file, Path: backup})
 	}
-	return os.WriteFile(file, []byte(updated), mode)
+	return writeFileLogged(file, []byte(updated), mode)
 }
 
 // yamlSetRewrite returns the rewritten YAML content and whether anything
@@ -738,7 +751,7 @@ func backupFile(file string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read for backup: %w", err)
 	}
-	if err := os.WriteFile(backup, src, preservedMode(file)); err != nil {
+	if err := writeFileLogged(backup, src, preservedMode(file)); err != nil {
 		return "", fmt.Errorf("write backup: %w", err)
 	}
 	return backup, nil

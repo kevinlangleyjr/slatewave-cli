@@ -17,6 +17,7 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/shell"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/verbose"
 )
 
 // httpClient is the shared client every fetch in this package routes
@@ -132,6 +133,7 @@ func preservedMode(file string) os.FileMode {
 // explicit mode (typically 0o644 for fresh writes; preservedMode of
 // the existing file when overwriting user config).
 func writeAtomic(dest string, mode os.FileMode, write func(io.Writer) error) error {
+	verbose.Log("write: %s (mode %o)", dest, mode)
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return fmt.Errorf("create dest dir: %w", err)
 	}
@@ -172,6 +174,7 @@ func writeAtomic(dest string, mode os.FileMode, write func(io.Writer) error) err
 // Status, content-type, and body-size guards run before any write hits
 // the temp file.
 func fetchAtomic(url, dest string) error {
+	verbose.Log("fetch: %s → %s", url, dest)
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("fetch %s: %w", url, err)
