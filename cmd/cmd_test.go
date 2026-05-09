@@ -25,6 +25,7 @@ func setupCmdEnv(t *testing.T) *cmdEnv {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir) // os.UserHomeDir reads this on Windows
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
 
 	buf := &bytes.Buffer{}

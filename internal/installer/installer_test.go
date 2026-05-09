@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -19,14 +20,16 @@ func hasGit() bool {
 	return err == nil
 }
 
-// gitInTempHome redirects HOME / XDG / GIT_CONFIG_GLOBAL so `git config
-// --global` writes to a per-test .gitconfig instead of the user's real
-// one. Mirrors the activator package's helper of the same name; both
-// could move into a shared testutil if a third caller appears.
+// gitInTempHome redirects HOME / USERPROFILE / XDG / GIT_CONFIG_GLOBAL
+// so `git config --global` writes to a per-test .gitconfig instead of
+// the user's real one. Mirrors the activator package's helper of the
+// same name; both could move into a shared testutil if a third caller
+// appears.
 func gitInTempHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir) // os.UserHomeDir reads this on Windows
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
 	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(dir, ".gitconfig"))
 	return dir
@@ -44,6 +47,9 @@ func stubTheme(slug, installType string) manifest.Theme {
 // ----- expandPath -----
 
 func TestExpandPath_Tilde(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("hardcoded unix path; tilde expansion is exercised by the activator's gitInTempHome path tests on Windows")
+	}
 	t.Setenv("HOME", "/users/test")
 	got, err := expandPath("~/.config/slatewave/foo.toml")
 	if err != nil {
@@ -56,6 +62,9 @@ func TestExpandPath_Tilde(t *testing.T) {
 }
 
 func TestExpandPath_EnvVar(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("hardcoded unix path")
+	}
 	t.Setenv("HOME", "/h")
 	got, err := expandPath("$HOME/.bat/themes/Slatewave.tmTheme")
 	if err != nil {
@@ -313,6 +322,9 @@ func TestUninstall_RestoresBackup(t *testing.T) {
 // activated file's (or a hardcoded 0o644). Pairs with the activator's
 // preservedMode test on the install side.
 func TestUninstall_RestoreUsesBackupFileMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows os.Chmod only honors the read-only bit; unix-style mode round-trip isn't observable")
+	}
 	dir := t.TempDir()
 	original := filepath.Join(dir, "secrets.conf")
 	backup := filepath.Join(dir, "secrets.conf.bak")

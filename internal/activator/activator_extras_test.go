@@ -20,13 +20,14 @@ func hasGit() bool {
 	return err == nil
 }
 
-// gitInTempHome redirects HOME so `git config --global` writes to a
-// per-test ~/.gitconfig instead of the real user file. Mirrors the
-// pattern used by state_test.go's stateInTempHome.
+// gitInTempHome redirects HOME / USERPROFILE so `git config --global`
+// writes to a per-test ~/.gitconfig instead of the real user file.
+// Mirrors state_test.go's stateInTempHome.
 func gitInTempHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir) // os.UserHomeDir reads this on Windows
 	// Some systems (CI) prefer XDG_CONFIG_HOME; force git to honor HOME.
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
 	// GIT_CONFIG_GLOBAL is the most explicit override available — wins

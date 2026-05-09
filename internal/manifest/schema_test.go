@@ -22,13 +22,13 @@ const schemaPath = "../../schemas/manifest.schema.json"
 // embedded manifest and validates it against the schema at schemas/
 // manifest.schema.json. Catches drift in two directions:
 //
-//  - A manifest that adds a typo'd field name slips past the Go struct
-//    parser silently (BurntSushi/toml ignores unknown fields), so without
-//    a schema check the CLI ships a manifest whose author thinks they
-//    set "destination" but actually set nothing.
+//   - A manifest that adds a typo'd field name slips past the Go struct
+//     parser silently (BurntSushi/toml ignores unknown fields), so without
+//     a schema check the CLI ships a manifest whose author thinks they
+//     set "destination" but actually set nothing.
 //
-//  - A struct field added without a schema entry passes the Go parser
-//    but fails the schema. Forces schema and code to evolve together.
+//   - A struct field added without a schema entry passes the Go parser
+//     but fails the schema. Forces schema and code to evolve together.
 //
 // Pure-Go: no external CLI tools, runs as part of `go test ./...` so
 // every PR exercises it. The CI workflow also wires `make validate-
