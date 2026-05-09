@@ -1,8 +1,5 @@
 module github.com/kevinlangleyjr/slatewave-cli
 
-// Pinned to the highest version golangci-lint v1's binary can analyze.
-// Bump in lockstep when CI's golangci-lint moves to a binary built
-// with a newer Go.
 go 1.24.2
 
 require (
@@ -11,6 +8,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/huh v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/sys v0.38.0
 )
@@ -40,7 +38,6 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/text v0.23.0 // indirect
