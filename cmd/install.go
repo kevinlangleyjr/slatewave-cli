@@ -287,9 +287,20 @@ func installOne(slug string, suppressFinal bool) error {
 	if installDryRun {
 		ui.Done("Dry run — no files written.")
 	} else {
-		ui.Done(doneMessage(t))
+		ui.Done(installDoneMessage(t))
 	}
 	return nil
+}
+
+// installDoneMessage returns the success line for `slatewave install <slug>`.
+// Honors the manifest's optional install.done_message; falls back to the
+// generic "Slatewave is installed." for themes that don't need
+// tool-specific guidance.
+func installDoneMessage(t manifest.Theme) string {
+	if t.Install.DoneMessage != "" {
+		return t.Install.DoneMessage
+	}
+	return "Slatewave is installed."
 }
 
 // installLabel produces the step label per install type.
@@ -330,20 +341,4 @@ func activateLabel(t manifest.Theme) string {
 	default:
 		return "Activating"
 	}
-}
-
-func doneMessage(t manifest.Theme) string {
-	// Tool-specific guidance — bat picks up its config on next
-	// invocation, but a prompt change needs a shell restart.
-	switch t.Theme.Slug {
-	case "bat":
-		return "bat picks up the new theme on its next invocation."
-	case "btop":
-		return "Launch `btop` to see Slatewave applied."
-	case "delta":
-		return "Run a `git diff` in any repo to see Slatewave applied."
-	case "oh-my-posh", "starship", "powerlevel10k":
-		return "Restart your shell or `source` your rc file."
-	}
-	return "Slatewave is installed."
 }

@@ -95,19 +95,13 @@ func uninstallOne(slug string) error {
 	return nil
 }
 
-// uninstallDoneMessage adds tool-specific guidance after the "Reverted." line for tools that cache config in memory and won't show the change until they're relaunched. The default ("Reverted.") is fine for tools that re-read config per-invocation (bat, delta, git diff) — the next run picks up the empty state automatically.
+// uninstallDoneMessage returns the success line for `slatewave uninstall <slug>`.
+// Honors the manifest's optional uninstall.done_message; falls back to the
+// generic "Reverted." for themes that re-read config per-invocation (bat,
+// delta, git diff — the next run picks up the empty state automatically).
 func uninstallDoneMessage(t manifest.Theme) string {
-	switch t.Theme.Slug {
-	case "ghostty", "alacritty", "wezterm", "iterm2", "kitty":
-		return fmt.Sprintf("Reverted. Quit and relaunch %s to see your original colors — running terminals keep the loaded theme in memory.", t.Theme.Name[len("Slatewave for "):])
-	case "btop":
-		return "Reverted. Quit and relaunch `btop` if it's open."
-	case "oh-my-posh", "starship", "powerlevel10k":
-		return "Reverted. Restart your shell or `source` your rc file."
-	case "obsidian", "logseq", "markedit":
-		return fmt.Sprintf("Reverted. Restart %s if it's open — the theme is loaded once at launch.", t.Theme.Name[len("Slatewave for "):])
-	case "vscode":
-		return "Reverted. VSCode picks up the change immediately."
+	if t.Uninstall.DoneMessage != "" {
+		return t.Uninstall.DoneMessage
 	}
 	return "Reverted."
 }
