@@ -175,6 +175,40 @@ func TestDoCurl_HungServerHitsHTTPTimeout(t *testing.T) {
 	}
 }
 
+// Atomicity check: when the fetch fails (here, oversized response), an
+// existing file at dest must be left untouched. Pre-Phase-2 the install
+// path wrote directly to dest, so a failed mid-write would have left a
+// truncated file. With writeAtomic + temp-rename, dest is only touched
+// after a successful copy.
+func TestDoCurl_FetchFailureLeavesExistingDestUntouched(t *testing.T) {
+	defer SetMaxFetchBytesForTest(16)()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("a", 64)))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "Slatewave.tmTheme")
+	original := []byte("original theme content — must survive a failed update\n")
+	if err := os.WriteFile(dest, original, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	th := curlTheme(srv.URL, dir, "Slatewave.tmTheme")
+	if _, err := Install(th, Options{}); err == nil {
+		t.Fatal("oversized response: want error, got nil")
+	}
+
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatalf("dest file disappeared after failed fetch: %v", err)
+	}
+	if string(got) != string(original) {
+		t.Errorf("dest file was overwritten by failed fetch:\ngot  %q\nwant %q", got, original)
+	}
+}
+
 // A response that exceeds the per-fetch byte cap must error out before
 // it fills the disk. Test shrinks the cap to 16 bytes and serves 64 — if
 // the cap fires, the dest file is removed too (no partial theme file

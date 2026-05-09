@@ -3,10 +3,8 @@ package installer
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 )
@@ -53,45 +51,11 @@ func refetch(t manifest.Theme, opts Options) error {
 		if err != nil {
 			return err
 		}
-		if err := atomicRefetch(f.URL, dest); err != nil {
+		if err := fetchAtomic(f.URL, dest); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-// atomicRefetch downloads url to a temp file in dest's directory, then
-// renames over dest. Atomicity matters here (more than in the install
-// path) because a failed update mid-write would otherwise corrupt an
-// existing, working theme.
-func atomicRefetch(url, dest string) error {
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return fmt.Errorf("create dest dir: %w", err)
-	}
-	resp, err := httpClient.Get(url)
-	if err != nil {
-		return fmt.Errorf("fetch %s: %w", url, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("fetch %s: %s", url, resp.Status)
-	}
-	if err := rejectHTMLContentType(url, resp.Header.Get("Content-Type")); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(dest), ".slatewave-fetch-*")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	if err := copyCapped(tmp, resp.Body, url); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), dest)
 }
 
 func gitPull(t manifest.Theme, opts Options) error {
