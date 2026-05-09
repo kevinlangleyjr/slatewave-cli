@@ -1,14 +1,18 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"github.com/kevinlangleyjr/slatewave-cli/internal/jsonout"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
+
+var statusJSON bool
 
 var statusCmd = &cobra.Command{
 	Use:   "status [theme]",
@@ -17,6 +21,7 @@ var statusCmd = &cobra.Command{
 
   slatewave status              # every installed theme
   slatewave status bat          # one theme
+  slatewave status --json       # machine-readable output
 
 Per theme: install timestamp, install + activate types, every file the
 CLI created, every config line the CLI appended, every backup the CLI
@@ -30,12 +35,72 @@ Read-only — status never touches state, install, or uninstall.`,
 		if err != nil {
 			return fmt.Errorf("load state: %w", err)
 		}
+		if statusJSON {
+			return renderStatusJSON(s, args)
+		}
 		if len(args) == 0 {
 			return statusAll(s)
 		}
 		statusOne(s, args[0])
 		return nil
 	},
+}
+
+func init() {
+	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Emit machine-readable JSON to stdout (see internal/jsonout for the schema)")
+}
+
+// renderStatusJSON emits the status footprint as JSON. With no slug,
+// every installed theme is listed; with a slug, only that one (or an
+// error if the slug isn't installed — same shape as the human path's
+// ui.Errorf, just promoted to a real error since --json consumers need
+// non-zero exit on missing slug to short-circuit their script).
+func renderStatusJSON(s *state.Store, args []string) error {
+	out := jsonout.StatusOutput{Themes: make([]jsonout.StatusEntry, 0)}
+	switch {
+	case len(args) == 0:
+		for _, slug := range s.AllSlugs() {
+			rec, _ := s.Get(slug)
+			out.Themes = append(out.Themes, statusEntry(rec))
+		}
+	default:
+		rec, ok := s.Get(args[0])
+		if !ok {
+			return fmt.Errorf("%s is not installed", args[0])
+		}
+		out.Themes = append(out.Themes, statusEntry(rec))
+	}
+	enc := json.NewEncoder(ui.W)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+// statusEntry converts a state.Record into the jsonout shape, looking
+// up the manifest's display name when available (state.Record stores
+// only the slug; the name comes from the manifest).
+func statusEntry(rec state.Record) jsonout.StatusEntry {
+	name := rec.Slug
+	if t, err := manifest.LoadOne(rec.Slug); err == nil {
+		name = t.Theme.Name
+	}
+	entry := jsonout.StatusEntry{
+		Slug:         rec.Slug,
+		Name:         name,
+		InstalledAt:  rec.InstalledAt,
+		InstallType:  rec.InstallType,
+		ActivateType: rec.ActivateType,
+		CreatedPaths: rec.CreatedPaths,
+	}
+	if rec.AppendedLine != nil {
+		entry.AppendedLine = &jsonout.AppendedLine{
+			File: rec.AppendedLine.File,
+			Line: rec.AppendedLine.Line,
+		}
+	}
+	for _, b := range rec.Backups {
+		entry.Backups = append(entry.Backups, jsonout.Backup{Original: b.Original, Path: b.Path})
+	}
+	return entry
 }
 
 func statusAll(s *state.Store) error {
