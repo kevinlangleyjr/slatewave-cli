@@ -100,6 +100,22 @@ func copyCapped(dst io.Writer, body io.Reader, url string) error {
 	return nil
 }
 
+// preservedMode returns the user's existing file mode so a rewrite
+// doesn't silently downgrade it. Returns 0o644 when file doesn't
+// exist (the caller is creating fresh — readable-by-others matches
+// the convention for unix config files).
+//
+// Used at every site that overwrites a user-owned file or restores a
+// backup. The activator has its own copy with the same shape; both
+// could move into a shared internal/fsutil if a third caller appears.
+func preservedMode(file string) os.FileMode {
+	info, err := os.Stat(file)
+	if err != nil {
+		return 0o644
+	}
+	return info.Mode().Perm()
+}
+
 // writeAtomic streams the bytes the caller writes via the `write`
 // callback into a temp file in dest's directory, then renames over
 // dest. Either dest ends up with the full new content, or it stays

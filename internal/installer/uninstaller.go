@@ -40,7 +40,10 @@ func Uninstall(rec state.Record, t manifest.Theme, opts Options) error {
 		if err != nil {
 			return fmt.Errorf("read backup %s: %w", b.Path, err)
 		}
-		err = writeAtomic(b.Original, 0o644, func(w io.Writer) error {
+		// Restore at the backup file's mode — backup was captured at the
+		// original file's mode, so restoring at backup's mode round-trips
+		// to the user's pre-install permissions (0o600 stays 0o600, etc.).
+		err = writeAtomic(b.Original, preservedMode(b.Path), func(w io.Writer) error {
 			_, err := io.Copy(w, src)
 			return err
 		})
@@ -152,5 +155,5 @@ func removeShellRCLine(file, line, marker string, opts Options) error {
 	if opts.DryRun {
 		return nil
 	}
-	return os.WriteFile(file, []byte(strings.Join(out, "\n")), 0o644)
+	return os.WriteFile(file, []byte(strings.Join(out, "\n")), preservedMode(file))
 }

@@ -34,6 +34,52 @@ func TestQuoteIfNeeded(t *testing.T) {
 
 // ----- ini-key activator -----
 
+// Mode preservation: a user with chmod 0o600 on their config (e.g.
+// .gitconfig with [user] secrets, or a paranoid btop.conf) must not
+// have it silently downgraded to 0o644 just because slatewave activated
+// a theme. The activator's WriteFile previously hardcoded 0o644;
+// preservedMode now honors what the file already had. The same property
+// must hold across the whole activate → backup round-trip: the .bak
+// file matches original mode, so an eventual uninstall restore lands
+// the user back at exactly the mode they started with.
+func TestActivate_IniKey_PreservesOriginalFileMode(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "secrets.conf")
+	original := "color_theme = \"Default\"\n"
+	if err := os.WriteFile(file, []byte(original), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	rec := state.Record{Slug: "btop"}
+	th := manifest.Theme{
+		Theme: manifest.Meta{Slug: "btop"},
+		Activate: manifest.Activate{
+			Type: "ini-key", File: file, Key: "color_theme", Value: "slatewave",
+		},
+	}
+	if err := Activate(th, &rec, Options{}); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+
+	info, err := os.Stat(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("activated file mode = %o, want 0o600 (mode silently widened)", got)
+	}
+
+	if len(rec.Backups) != 1 {
+		t.Fatalf("expected 1 backup, got %d", len(rec.Backups))
+	}
+	bakInfo, err := os.Stat(rec.Backups[0].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := bakInfo.Mode().Perm(); got != 0o600 {
+		t.Errorf("backup mode = %o, want 0o600 (uninstall would restore at wrong mode)", got)
+	}
+}
+
 func TestActivate_IniKey_ReplacesExistingValue(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "btop.conf")
 	original := `# btop config
