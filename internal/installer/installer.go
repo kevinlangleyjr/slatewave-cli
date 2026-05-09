@@ -19,6 +19,24 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 )
 
+// httpClient is the shared client every fetch in this package routes
+// through. The default http.Get / http.DefaultClient has no timeout, so
+// a hung server (or a TCP black hole on flaky Wi-Fi) would freeze
+// `slatewave install` indefinitely with no way out except Ctrl-C. A
+// 60-second cap covers slow networks for a few-MB theme file without
+// being so generous it masks a real outage.
+var httpClient = &http.Client{Timeout: 60 * time.Second}
+
+// SetHTTPTimeoutForTest swaps httpClient.Timeout and returns a restorer.
+// Tests use it to assert timeout behavior without sleeping for 60s.
+// Safe to call from tests because the installer package's tests don't
+// use t.Parallel().
+func SetHTTPTimeoutForTest(d time.Duration) func() {
+	prev := httpClient.Timeout
+	httpClient.Timeout = d
+	return func() { httpClient.Timeout = prev }
+}
+
 // Options controls install behavior at the call site.
 type Options struct {
 	DryRun bool
@@ -125,7 +143,7 @@ func fetchToFile(url, dest string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return fmt.Errorf("create dest dir: %w", err)
 	}
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("fetch %s: %w", url, err)
 	}
