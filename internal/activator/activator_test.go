@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -43,6 +44,9 @@ func TestQuoteIfNeeded(t *testing.T) {
 // file matches original mode, so an eventual uninstall restore lands
 // the user back at exactly the mode they started with.
 func TestActivate_IniKey_PreservesOriginalFileMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows os.Chmod only affects the read-only bit; unix-style 0o600 isn't observable through info.Mode().Perm()")
+	}
 	file := filepath.Join(t.TempDir(), "secrets.conf")
 	original := "color_theme = \"Default\"\n"
 	if err := os.WriteFile(file, []byte(original), 0o600); err != nil {

@@ -401,6 +401,9 @@ func TestDoCurl_MultiFile_DryRun(t *testing.T) {
 }
 
 func TestDoCurl_PostHookRuns(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses unix `touch` command; cmd.exe equivalent involves redirect and would need a separate test")
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("payload"))
 	}))
@@ -423,6 +426,9 @@ func TestDoCurl_PostHookRuns(t *testing.T) {
 }
 
 func TestDoCurl_PostHookFailureSurfaces(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("`exit 1` semantics differ in cmd.exe — covered on linux/macos")
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("payload"))
 	}))
@@ -661,6 +667,9 @@ func TestDetect_NonZeroExitErrors(t *testing.T) {
 // 60s, then asserts Detect returns inside ~1s with a "not detected" error
 // (a timed-out detect is observationally identical to a failing detect).
 func TestDetect_HangingCommandHitsTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires `sleep` on PATH; cmd.exe equivalent (timeout) has different semantics — covered on linux/macos")
+	}
 	defer SetDetectTimeoutForTest(200 * time.Millisecond)()
 
 	th := manifest.Theme{Theme: manifest.Meta{Slug: "x", Name: "X", DetectCommand: "sleep 60"}}
@@ -682,6 +691,9 @@ func TestDetect_HangingCommandHitsTimeout(t *testing.T) {
 // ----- expandPath round-trip with $HOME swap -----
 
 func TestExpandPath_TildeAndHomeMatchAfterSetenv(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test uses unix $HOME semantics; tilde resolution on Windows reads USERPROFILE and isn't symmetric with $HOME expansion via os.ExpandEnv")
+	}
 	// Sanity check that ~ and $HOME resolve to the same place — uninstall
 	// pathing relies on this, and the env var path isn't covered above.
 	t.Setenv("HOME", "/tmp/fakehome")

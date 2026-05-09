@@ -10,12 +10,15 @@ import (
 	"time"
 )
 
-// stateInTempHome redirects $HOME to a per-test temp dir so the real
-// ~/.config/slatewave/installed.toml never gets touched by a test.
+// stateInTempHome redirects the home dir to a per-test temp dir so the
+// real ~/.config/slatewave/installed.toml never gets touched by a test.
+// Sets both HOME (unix) and USERPROFILE (windows) since os.UserHomeDir
+// reads different vars on each platform.
 func stateInTempHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
 	return dir
 }
 

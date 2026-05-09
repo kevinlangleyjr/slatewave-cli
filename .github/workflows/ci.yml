@@ -1,9 +1,15 @@
 name: ci
 
 # Runs on every push to main and on every PR.
-# Two jobs: `test` (gofmt + vet + race-tests, matrixed across linux + macos)
-# and `lint` (golangci-lint, linux-only — findings don't vary by OS).
-# They run in parallel — a slow lint job doesn't block the test signal.
+# Two jobs: `test` (gofmt + vet + race-tests, matrixed across linux +
+# macos + windows) and `lint` (golangci-lint, linux-only — findings
+# don't vary by OS). They run in parallel — a slow lint job doesn't
+# block the test signal.
+#
+# Windows tests honor `runtime.GOOS == "windows"` skips for the handful
+# of POSIX-only assertions (mode bits, sleep / touch / exit shellouts).
+# Everything else runs the same on every runner so a Windows-only
+# regression in the CLI itself surfaces here.
 
 on:
   push:
@@ -19,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -33,7 +39,9 @@ jobs:
 
       - name: Verify go.mod / go.sum are tidy
         # Linux-only — go mod tidy results are platform-independent and
-        # diff-comparing on macos would just be a redundant signal.
+        # diff-comparing on macos / windows would just be a redundant
+        # signal (and the bash-style heredoc-and-pipe wouldn't work on
+        # the cmd.exe-defaulted Windows runner anyway).
         if: matrix.os == 'ubuntu-latest'
         run: |
           go mod verify
@@ -58,6 +66,15 @@ jobs:
 
       - name: tests (race detector)
         run: go test -race ./...
+
+      - name: smoke (dry-run install for every embedded manifest)
+        # Linux-only — the `make smoke` target uses bash for-loop syntax
+        # and writes to ./slatewave on disk; the test signal is
+        # platform-independent (every manifest's resolveSlugs / detect /
+        # install dispatch path runs in --dry-run mode), so once is
+        # enough.
+        if: matrix.os == 'ubuntu-latest'
+        run: make smoke
 
   lint:
     name: lint
