@@ -13,13 +13,28 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
-var (
-	installDryRun        bool
-	installAll           bool
-	installCategory      string
-	installInteractive   bool
-	installNoInteractive bool
-)
+// installFlags bundles install's parsed flag values. Constructed once
+// per RunE invocation from cmd.Flags() and threaded through every
+// helper, so flag values are scoped to the call instead of living in
+// package-level vars across the package.
+type installFlags struct {
+	DryRun        bool
+	All           bool
+	Category      string
+	Interactive   bool
+	NoInteractive bool
+}
+
+func parseInstallFlags(cmd *cobra.Command) installFlags {
+	f := cmd.Flags()
+	return installFlags{
+		DryRun:        flagBool(f, "dry-run"),
+		All:           flagBool(f, "all"),
+		Category:      flagString(f, "category"),
+		Interactive:   flagBool(f, "interactive"),
+		NoInteractive: flagBool(f, "no-interactive"),
+	}
+}
 
 var installCmd = &cobra.Command{
 	Use:   "install [theme]",
@@ -36,14 +51,15 @@ Individual failures don't bail the rest — bulk install reports a summary
 at the end.`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validInstallArgs,
-	RunE: func(_ *cobra.Command, args []string) error {
-		if installAll && installCategory != "" {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		f := parseInstallFlags(cmd)
+		if f.All && f.Category != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
 		}
-		if installInteractive && installNoInteractive {
+		if f.Interactive && f.NoInteractive {
 			return fmt.Errorf("--interactive and --no-interactive are mutually exclusive")
 		}
-		bulk := installAll || installCategory != ""
+		bulk := f.All || f.Category != ""
 		if bulk && len(args) > 0 {
 			return fmt.Errorf("don't pass a theme name with --all or --category")
 		}
@@ -51,7 +67,7 @@ at the end.`,
 			return fmt.Errorf("specify a theme name, --all, or --category=<name>")
 		}
 
-		slugs, err := resolveSlugs(args, bulk)
+		slugs, err := resolveSlugs(args, bulk, f)
 		if err != nil {
 			return err
 		}
@@ -66,35 +82,35 @@ at the end.`,
 		//   bulk + no TTY          → streaming summary.
 		//   single (no bulk flag)  → streaming, single-theme pipeline.
 		switch {
-		case installInteractive:
-			return installInteractiveTUI(slugs)
-		case installNoInteractive:
+		case f.Interactive:
+			return installInteractiveTUI(slugs, f)
+		case f.NoInteractive:
 			if !bulk {
-				return installOne(slugs[0], false)
+				return installOne(slugs[0], false, f)
 			}
-			return installBulk(slugs)
+			return installBulk(slugs, f)
 		case !bulk:
-			return installOne(slugs[0], false)
+			return installOne(slugs[0], false, f)
 		case isTerminal():
-			return installInteractiveTUI(slugs)
+			return installInteractiveTUI(slugs, f)
 		default:
-			return installBulk(slugs)
+			return installBulk(slugs, f)
 		}
 	},
 }
 
 func init() {
-	installCmd.Flags().BoolVar(&installDryRun, "dry-run", false, "Print what would happen without writing files")
-	installCmd.Flags().BoolVar(&installAll, "all", false, "Install every shipping theme")
-	installCmd.Flags().StringVar(&installCategory, "category", "", "Install every theme in this category (editor / terminal / notes / productivity / chat)")
-	installCmd.Flags().BoolVar(&installInteractive, "interactive", false, "Force the live progress dashboard (default for bulk installs on a TTY)")
-	installCmd.Flags().BoolVar(&installNoInteractive, "no-interactive", false, "Force streaming output instead of the dashboard (useful for CI / log capture)")
+	installCmd.Flags().Bool("dry-run", false, "Print what would happen without writing files")
+	installCmd.Flags().Bool("all", false, "Install every shipping theme")
+	installCmd.Flags().String("category", "", "Install every theme in this category (editor / terminal / notes / productivity / chat)")
+	installCmd.Flags().Bool("interactive", false, "Force the live progress dashboard (default for bulk installs on a TTY)")
+	installCmd.Flags().Bool("no-interactive", false, "Force streaming output instead of the dashboard (useful for CI / log capture)")
 	_ = installCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
 // resolveSlugs returns the slugs to install. For single-theme mode it's
 // just args[0]; for bulk it filters by category if set.
-func resolveSlugs(args []string, bulk bool) ([]string, error) {
+func resolveSlugs(args []string, bulk bool, f installFlags) ([]string, error) {
 	if !bulk {
 		return []string{args[0]}, nil
 	}
@@ -107,14 +123,14 @@ func resolveSlugs(args []string, bulk bool) ([]string, error) {
 	}
 	var out []string
 	for _, t := range all {
-		if installCategory != "" && t.Theme.Category != installCategory {
+		if f.Category != "" && t.Theme.Category != f.Category {
 			continue
 		}
 		out = append(out, t.Theme.Slug)
 	}
 	if len(out) == 0 {
-		if installCategory != "" {
-			return nil, fmt.Errorf("no themes in category %q", installCategory)
+		if f.Category != "" {
+			return nil, fmt.Errorf("no themes in category %q", f.Category)
 		}
 		return nil, fmt.Errorf("no themes available")
 	}
@@ -130,7 +146,7 @@ func noManifestError(slug string) error {
 }
 
 // installInteractiveTUI runs the install pipeline through the bubbletea dashboard. It loads each slug's manifest, drops themes already recorded in state (matching installBulk's skip behavior), and hands the rest to tui.RunInstall — which renders live progress and surfaces failures in the summary line rather than per-theme errors.
-func installInteractiveTUI(slugs []string) error {
+func installInteractiveTUI(slugs []string, f installFlags) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -165,7 +181,7 @@ func installInteractiveTUI(slugs []string) error {
 		return nil
 	}
 
-	runErr := tui.RunInstall(themes, tui.InstallOptions{DryRun: installDryRun})
+	runErr := tui.RunInstall(themes, tui.InstallOptions{DryRun: f.DryRun})
 	// Print post-install instructions for every theme we tried, after the
 	// dashboard exits. Static-mode installOne prints these inline; TUI mode
 	// can't (multi-line guidance won't fit in a one-row dashboard) so we
@@ -199,7 +215,7 @@ func printPostInstallInstructions(themes []manifest.Theme) {
 // installBulk runs installOne for each slug, skipping themes already
 // recorded in state and continuing past individual failures so one
 // broken theme doesn't bail the rest of the run.
-func installBulk(slugs []string) error {
+func installBulk(slugs []string, f installFlags) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -215,7 +231,7 @@ func installBulk(slugs []string) error {
 		if i > 0 {
 			fmt.Fprintln(ui.W)
 		}
-		if err := installOne(slug, true); err != nil {
+		if err := installOne(slug, true, f); err != nil {
 			ui.Errorf("%s: %v", slug, err)
 			failed++
 			continue
@@ -242,7 +258,7 @@ func installBulk(slugs []string) error {
 //
 // suppressFinal — when true (bulk mode), skip the per-theme final
 // "Done." line so the bulk caller can render its own summary.
-func installOne(slug string, suppressFinal bool) error {
+func installOne(slug string, suppressFinal bool, f installFlags) error {
 	t, err := manifest.LoadOne(slug)
 	if err != nil {
 		return noManifestError(slug)
@@ -252,8 +268,8 @@ func installOne(slug string, suppressFinal bool) error {
 	}
 
 	ui.Header("Installing", t.Theme.Name)
-	opts := installer.Options{DryRun: installDryRun}
-	actOpts := activator.Options{DryRun: installDryRun}
+	opts := installer.Options{DryRun: f.DryRun}
+	actOpts := activator.Options{DryRun: f.DryRun}
 
 	if t.Install.Type != "marketplace" && t.Install.Type != "manual" {
 		done := ui.StepStart(fmt.Sprintf("Detecting %s", t.Theme.Slug))
@@ -286,7 +302,7 @@ func installOne(slug string, suppressFinal bool) error {
 		done(nil)
 	}
 
-	if !installDryRun {
+	if !f.DryRun {
 		if err := state.Update(func(s *state.Store) error {
 			s.Put(rec)
 			return nil
@@ -305,7 +321,7 @@ func installOne(slug string, suppressFinal bool) error {
 	if suppressFinal {
 		return nil
 	}
-	if installDryRun {
+	if f.DryRun {
 		ui.Done("Dry run — no files written.")
 	} else {
 		ui.Done(installDoneMessage(t))

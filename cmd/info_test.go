@@ -75,8 +75,8 @@ func TestInfoCmd_JSONOutputShape(t *testing.T) {
 	env := setupCmdEnv(t)
 	env.useManifestDir(t, map[string]string{"okayish": manifestForInfo})
 
-	t.Cleanup(func() { infoJSON = false })
-	infoJSON = true
+	resetFlags := setFlags(t, infoCmd, map[string]string{"json": "true"})
+	defer resetFlags()
 	if err := infoCmd.RunE(infoCmd, []string{"okayish"}); err != nil {
 		t.Fatalf("infoCmd.RunE: %v", err)
 	}
@@ -124,15 +124,16 @@ func TestInfoCmd_UnknownSlugErrors(t *testing.T) {
 
 // --interactive and --no-interactive together must surface a clean
 // "mutually exclusive" error rather than silently letting one win.
+// Flags are set through cobra's flag set (not via package-level var
+// mutation) since the install command reads them through cmd.Flags()
+// at RunE time.
 func TestInstallCmd_InteractiveAndNoInteractiveConflict(t *testing.T) {
-	t.Cleanup(func() {
-		installInteractive = false
-		installNoInteractive = false
-		installAll = false
+	resetFlags := setFlags(t, installCmd, map[string]string{
+		"interactive":    "true",
+		"no-interactive": "true",
+		"all":            "true", // satisfy the bulk-shape check
 	})
-	installInteractive = true
-	installNoInteractive = true
-	installAll = true // also satisfy the bulk shape
+	defer resetFlags()
 
 	err := installCmd.RunE(installCmd, nil)
 	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
@@ -141,14 +142,12 @@ func TestInstallCmd_InteractiveAndNoInteractiveConflict(t *testing.T) {
 }
 
 func TestUpdateCmd_InteractiveAndNoInteractiveConflict(t *testing.T) {
-	t.Cleanup(func() {
-		updateInteractive = false
-		updateNoInteractive = false
-		updateAll = false
+	resetFlags := setFlags(t, updateCmd, map[string]string{
+		"interactive":    "true",
+		"no-interactive": "true",
+		"all":            "true",
 	})
-	updateInteractive = true
-	updateNoInteractive = true
-	updateAll = true
+	defer resetFlags()
 
 	err := updateCmd.RunE(updateCmd, nil)
 	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {

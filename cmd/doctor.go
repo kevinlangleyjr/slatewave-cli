@@ -17,11 +17,21 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
-var (
-	doctorFix    bool
-	doctorDryRun bool
-	doctorJSON   bool
-)
+// doctorFlags bundles doctor's parsed flag values.
+type doctorFlags struct {
+	Fix    bool
+	DryRun bool
+	JSON   bool
+}
+
+func parseDoctorFlags(cmd *cobra.Command) doctorFlags {
+	f := cmd.Flags()
+	return doctorFlags{
+		Fix:    flagBool(f, "fix"),
+		DryRun: flagBool(f, "dry-run"),
+		JSON:   flagBool(f, "json"),
+	}
+}
 
 // doctor walks every state record and classifies it. Read-only: no
 // state mutations, no installs, no uninstalls. A separate command so
@@ -61,13 +71,14 @@ to fix and the dashboard runs the matching remedy (update for stale, uninstall
 for missing-tool, drop for orphan). Without --fix, copy a suggested remedy from
 the report or run ` + "`slatewave list`" + ` to silently reconcile stale + orphan records.`,
 	Args: cobra.NoArgs,
-	RunE: func(_ *cobra.Command, _ []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		f := parseDoctorFlags(cmd)
 		s, err := state.Load()
 		if err != nil {
 			return fmt.Errorf("load state: %w", err)
 		}
 
-		if doctorJSON {
+		if f.JSON {
 			return renderDoctorJSON(s)
 		}
 
@@ -98,18 +109,18 @@ the report or run ` + "`slatewave list`" + ` to silently reconcile stale + orpha
 		fmt.Fprintln(ui.W)
 		fmt.Fprintln(ui.W, doctorSummary(healthy, stale, missing, orphan))
 
-		if doctorFix {
+		if f.Fix {
 			fmt.Fprintln(ui.W)
-			return runDoctorFix(rows)
+			return runDoctorFix(rows, f)
 		}
 		return nil
 	},
 }
 
 func init() {
-	doctorCmd.Flags().BoolVar(&doctorFix, "fix", false, "Interactively remediate stale, missing-tool, and orphan rows")
-	doctorCmd.Flags().BoolVar(&doctorDryRun, "dry-run", false, "With --fix, show the dashboard without writing")
-	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "Emit machine-readable JSON to stdout (incompatible with --fix)")
+	doctorCmd.Flags().Bool("fix", false, "Interactively remediate stale, missing-tool, and orphan rows")
+	doctorCmd.Flags().Bool("dry-run", false, "With --fix, show the dashboard without writing")
+	doctorCmd.Flags().Bool("json", false, "Emit machine-readable JSON to stdout (incompatible with --fix)")
 	rootCmd.AddCommand(doctorCmd)
 }
 
@@ -164,7 +175,7 @@ func doctorStatusString(s doctorStatus) string {
 }
 
 // runDoctorFix maps fixable doctor rows to tui.Fix entries, hands them to the picker so the user can confirm or deselect, then runs the dashboard. Healthy rows are filtered out before the picker — there's nothing to fix.
-func runDoctorFix(rows []doctorRow) error {
+func runDoctorFix(rows []doctorRow, f doctorFlags) error {
 	fixes := buildFixes(rows)
 	if len(fixes) == 0 {
 		ui.Done("Nothing to fix.")
@@ -185,7 +196,7 @@ func runDoctorFix(rows []doctorRow) error {
 	}
 
 	fmt.Fprintln(ui.W)
-	return tui.RunFix(selected, tui.FixOptions{DryRun: doctorDryRun})
+	return tui.RunFix(selected, tui.FixOptions{DryRun: f.DryRun})
 }
 
 // buildFixes converts diagnose() rows into tui.Fix entries. Healthy rows are dropped. For stale and missing-tool rows we re-load the manifest so the fix pipeline has it (avoids a second LoadOne in the dashboard); orphan rows ship without a manifest since that's the diagnosis.

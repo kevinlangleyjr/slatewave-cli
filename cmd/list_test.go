@@ -161,8 +161,8 @@ func TestListCmd_JSONOutputShape(t *testing.T) {
 		ActivateType: "none",
 	})
 
-	t.Cleanup(func() { listJSON = false })
-	listJSON = true
+	resetFlags := setFlags(t, listCmd, map[string]string{"json": "true"})
+	defer resetFlags()
 	if err := listCmd.RunE(listCmd, nil); err != nil {
 		t.Fatalf("listCmd.RunE: %v", err)
 	}

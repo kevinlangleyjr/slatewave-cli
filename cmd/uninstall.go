@@ -11,11 +11,23 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
-var (
-	uninstallDryRun   bool
-	uninstallAll      bool
-	uninstallCategory string
-)
+// uninstallFlags bundles uninstall's parsed flag values. browse.go's
+// uninstall path passes a zero-value here since flags are CLI-only;
+// the browser doesn't surface --dry-run / --category as TUI options.
+type uninstallFlags struct {
+	DryRun   bool
+	All      bool
+	Category string
+}
+
+func parseUninstallFlags(cmd *cobra.Command) uninstallFlags {
+	f := cmd.Flags()
+	return uninstallFlags{
+		DryRun:   flagBool(f, "dry-run"),
+		All:      flagBool(f, "all"),
+		Category: flagString(f, "category"),
+	}
+}
 
 var uninstallCmd = &cobra.Command{
 	Use:   "uninstall [theme]",
@@ -33,11 +45,12 @@ at the end. Themes whose manifest has disappeared since install can't be
 reversed safely; they're skipped with a warning so the run keeps going.`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validInstalledArgs,
-	RunE: func(_ *cobra.Command, args []string) error {
-		if uninstallAll && uninstallCategory != "" {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		f := parseUninstallFlags(cmd)
+		if f.All && f.Category != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
 		}
-		bulk := uninstallAll || uninstallCategory != ""
+		bulk := f.All || f.Category != ""
 		if bulk && len(args) > 0 {
 			return fmt.Errorf("don't pass a theme name with --all or --category")
 		}
@@ -46,14 +59,14 @@ reversed safely; they're skipped with a warning so the run keeps going.`,
 		}
 
 		if bulk {
-			return uninstallBulk()
+			return uninstallBulk(f)
 		}
-		return uninstallOne(args[0])
+		return uninstallOne(args[0], f)
 	},
 }
 
-// uninstallOne is the shared uninstall pipeline — used by `slatewave uninstall <slug>` and by `slatewave browse` when the user picks the uninstall action. Honors uninstallDryRun.
-func uninstallOne(slug string) error {
+// uninstallOne is the shared uninstall pipeline — used by `slatewave uninstall <slug>` and by `slatewave browse` when the user picks the uninstall action. Honors f.DryRun.
+func uninstallOne(slug string, f uninstallFlags) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -70,7 +83,7 @@ func uninstallOne(slug string) error {
 
 	ui.Header("Uninstalling", t.Theme.Name)
 
-	opts := installer.Options{DryRun: uninstallDryRun}
+	opts := installer.Options{DryRun: f.DryRun}
 	done := ui.StepStart("Reversing install footprint")
 	if err := installer.Uninstall(rec, t, opts); err != nil {
 		done(err)
@@ -78,7 +91,7 @@ func uninstallOne(slug string) error {
 	}
 	done(nil)
 
-	if !uninstallDryRun {
+	if !f.DryRun {
 		if err := state.Update(func(s *state.Store) error {
 			s.Remove(slug)
 			return nil
@@ -87,7 +100,7 @@ func uninstallOne(slug string) error {
 		}
 	}
 
-	if uninstallDryRun {
+	if f.DryRun {
 		ui.Done("Dry run — nothing reverted.")
 	} else {
 		ui.Done(uninstallDoneMessage(t))
@@ -107,7 +120,7 @@ func uninstallDoneMessage(t manifest.Theme) string {
 }
 
 // uninstallBulk iterates installed slugs (filtered by category if set), running uninstallOne for each. Mirrors updateBulk's shape — individual failures are reported and the run continues so one broken reversal doesn't strand the rest installed.
-func uninstallBulk() error {
+func uninstallBulk(f uninstallFlags) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -115,17 +128,17 @@ func uninstallBulk() error {
 
 	var slugs []string
 	for _, slug := range s.AllSlugs() {
-		if uninstallCategory != "" {
+		if f.Category != "" {
 			th, err := manifest.LoadOne(slug)
-			if err != nil || th.Theme.Category != uninstallCategory {
+			if err != nil || th.Theme.Category != f.Category {
 				continue
 			}
 		}
 		slugs = append(slugs, slug)
 	}
 	if len(slugs) == 0 {
-		if uninstallCategory != "" {
-			return fmt.Errorf("no installed themes in category %q", uninstallCategory)
+		if f.Category != "" {
+			return fmt.Errorf("no installed themes in category %q", f.Category)
 		}
 		ui.MutedLn("Nothing to uninstall — no themes installed.")
 		return nil
@@ -136,7 +149,7 @@ func uninstallBulk() error {
 		if i > 0 {
 			fmt.Fprintln(ui.W)
 		}
-		if err := uninstallOne(slug); err != nil {
+		if err := uninstallOne(slug, f); err != nil {
 			ui.Errorf("%s: %v", slug, err)
 			failed++
 			continue
@@ -155,8 +168,8 @@ func uninstallBulk() error {
 }
 
 func init() {
-	uninstallCmd.Flags().BoolVar(&uninstallDryRun, "dry-run", false, "Print what would happen without reverting")
-	uninstallCmd.Flags().BoolVar(&uninstallAll, "all", false, "Uninstall every installed theme")
-	uninstallCmd.Flags().StringVar(&uninstallCategory, "category", "", "Uninstall every installed theme in this category")
+	uninstallCmd.Flags().Bool("dry-run", false, "Print what would happen without reverting")
+	uninstallCmd.Flags().Bool("all", false, "Uninstall every installed theme")
+	uninstallCmd.Flags().String("category", "", "Uninstall every installed theme in this category")
 	_ = uninstallCmd.RegisterFlagCompletionFunc("category", validCategories)
 }

@@ -12,8 +12,6 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
-var statusJSON bool
-
 var statusCmd = &cobra.Command{
 	Use:   "status [theme]",
 	Short: "Show what's installed (and where the files live)",
@@ -30,12 +28,12 @@ made before editing. This is what ` + "`slatewave uninstall`" + ` would reverse.
 Read-only — status never touches state, install, or uninstall.`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validInstalledArgs,
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		s, err := state.Load()
 		if err != nil {
 			return fmt.Errorf("load state: %w", err)
 		}
-		if statusJSON {
+		if flagBool(cmd.Flags(), "json") {
 			return renderStatusJSON(s, args)
 		}
 		if len(args) == 0 {
@@ -47,7 +45,7 @@ Read-only — status never touches state, install, or uninstall.`,
 }
 
 func init() {
-	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Emit machine-readable JSON to stdout (see internal/jsonout for the schema)")
+	statusCmd.Flags().Bool("json", false, "Emit machine-readable JSON to stdout (see internal/jsonout for the schema)")
 }
 
 // renderStatusJSON emits the status footprint as JSON. With no slug,

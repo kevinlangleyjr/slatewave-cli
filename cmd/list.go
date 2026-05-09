@@ -16,10 +16,19 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
-var (
-	listCategory string
-	listJSON     bool
-)
+// listFlags bundles list's parsed flag values.
+type listFlags struct {
+	Category string
+	JSON     bool
+}
+
+func parseListFlags(cmd *cobra.Command) listFlags {
+	f := cmd.Flags()
+	return listFlags{
+		Category: flagString(f, "category"),
+		JSON:     flagBool(f, "json"),
+	}
+}
 
 var listCmd = &cobra.Command{
 	Use:   "list",
@@ -34,7 +43,8 @@ Before rendering, list silently re-runs each installed theme's verify
 command. If a theme was uninstalled outside the CLI (e.g. ` + "`code --uninstall-extension`" + `
 from VSCode's UI) the stale state record is dropped and the row renders
 as not-installed. To audit drift without mutating state, use ` + "`slatewave doctor`" + `.`,
-	RunE: func(_ *cobra.Command, _ []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		f := parseListFlags(cmd)
 		// LoadSupported hides themes that don't claim the current OS.
 		// On Windows the list shrinks to the four manifests that opt
 		// in; on darwin/linux it's identical to LoadAll today.
@@ -62,7 +72,7 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 		order := []string{"editor", "terminal", "notes", "productivity", "chat"}
 		groups := map[string][]manifest.Theme{}
 		for _, t := range themes {
-			if listCategory != "" && t.Theme.Category != listCategory {
+			if f.Category != "" && t.Theme.Category != f.Category {
 				continue
 			}
 			groups[t.Theme.Category] = append(groups[t.Theme.Category], t)
@@ -70,12 +80,12 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 
 		// If --category was set and matched nothing, error rather than
 		// printing an empty box (which would look like a render bug).
-		if listCategory != "" && len(groups) == 0 {
-			return fmt.Errorf("no themes in category %q (try one of: %s)", listCategory, strings.Join(order, ", "))
+		if f.Category != "" && len(groups) == 0 {
+			return fmt.Errorf("no themes in category %q (try one of: %s)", f.Category, strings.Join(order, ", "))
 		}
 
-		if listJSON {
-			return renderListJSON(themes, s, order, groups)
+		if f.JSON {
+			return renderListJSON(themes, s, order, groups, f)
 		}
 
 		var rows []string
@@ -99,10 +109,10 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 		// Footer counts use the filtered theme set so "N of M installed"
 		// matches what the user is actually looking at.
 		footerThemes := themes
-		if listCategory != "" {
+		if f.Category != "" {
 			footerThemes = nil
 			for _, t := range themes {
-				if t.Theme.Category == listCategory {
+				if t.Theme.Category == f.Category {
 					footerThemes = append(footerThemes, t)
 				}
 			}
@@ -130,8 +140,8 @@ func pluralize(n int, singular, plural string) string {
 }
 
 func init() {
-	listCmd.Flags().StringVar(&listCategory, "category", "", "Only show themes in this category (editor / terminal / notes / productivity / chat)")
-	listCmd.Flags().BoolVar(&listJSON, "json", false, "Emit machine-readable JSON to stdout (see internal/jsonout for the schema)")
+	listCmd.Flags().String("category", "", "Only show themes in this category (editor / terminal / notes / productivity / chat)")
+	listCmd.Flags().Bool("json", false, "Emit machine-readable JSON to stdout (see internal/jsonout for the schema)")
 	_ = listCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
@@ -140,7 +150,7 @@ func init() {
 // JSON output preserves the same category-based stable ordering as the
 // rendered version (callers shouldn't see a different theme order
 // between --json and not).
-func renderListJSON(themes []manifest.Theme, s *state.Store, order []string, groups map[string][]manifest.Theme) error {
+func renderListJSON(themes []manifest.Theme, s *state.Store, order []string, groups map[string][]manifest.Theme, f listFlags) error {
 	out := jsonout.ListOutput{Themes: make([]jsonout.ThemeRow, 0)}
 	for _, cat := range order {
 		for _, t := range groups[cat] {
@@ -162,10 +172,10 @@ func renderListJSON(themes []manifest.Theme, s *state.Store, order []string, gro
 	// Footer counts mirror the human path: filtered theme set if a
 	// category was requested, full set otherwise.
 	footerThemes := themes
-	if listCategory != "" {
+	if f.Category != "" {
 		footerThemes = nil
 		for _, t := range themes {
-			if t.Theme.Category == listCategory {
+			if t.Theme.Category == f.Category {
 				footerThemes = append(footerThemes, t)
 			}
 		}
