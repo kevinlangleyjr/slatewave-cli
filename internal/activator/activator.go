@@ -339,9 +339,28 @@ func spliceBefore(data, anchor, marker, line string) (string, bool) {
 	return data, false
 }
 
+// shellRCBasename maps a shell binary name (filepath.Base of $SHELL) to
+// the rc file it sources on login. Used to break ties when none of the
+// candidate rc files exist on disk yet — a fresh-account user with
+// SHELL=/bin/zsh and no .zshrc / .bashrc should land at .zshrc, not
+// at whatever happens to be first in the manifest.
+//
+// Match is exact on the rc file's basename (filepath.Base) — the
+// previous strings.Contains(strings.ToLower(path), shell) approach
+// matched ".zshrc" against SHELL=/bin/sh because "sh" is a substring
+// of "zsh", which would silently route the activation line to the
+// wrong file.
+var shellRCBasename = map[string]string{
+	"zsh":  ".zshrc",
+	"bash": ".bashrc",
+	"fish": "config.fish",
+	"ksh":  ".kshrc",
+}
+
 // pickShellRC chooses which rc file to append to. Preference order:
 //  1. The first existing file in candidates.
-//  2. If none exist, the file matching $SHELL.
+//  2. If none exist, the candidate whose basename matches the rc file
+//     associated with $SHELL via shellRCBasename.
 //  3. Fallback to the first candidate.
 func pickShellRC(candidates []string) (string, error) {
 	if len(candidates) == 0 {
@@ -360,10 +379,11 @@ func pickShellRC(candidates []string) (string, error) {
 			return p, nil
 		}
 	}
-	shell := os.Getenv("SHELL")
-	for _, p := range expanded {
-		if strings.Contains(strings.ToLower(p), filepath.Base(shell)) {
-			return p, nil
+	if rc, ok := shellRCBasename[filepath.Base(os.Getenv("SHELL"))]; ok {
+		for _, p := range expanded {
+			if filepath.Base(p) == rc {
+				return p, nil
+			}
 		}
 	}
 	return expanded[0], nil
