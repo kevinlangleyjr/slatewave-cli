@@ -18,24 +18,17 @@ var ErrNoAutomatedUpdate = errors.New("no automated update for this install type
 // (the user's config already references the theme; only the source
 // files / extension binaries change).
 //
-//	curl, gui-import → re-download URL to Dest, overwriting in place
-//	clone            → `git pull --ff-only` on the existing clone
-//	vscode-ext       → `code --install-extension <id> --force`
-//	marketplace      → ErrNoAutomatedUpdate
-//	manual           → ErrNoAutomatedUpdate
+// Dispatch goes through the same installers registry as Install. Types
+// whose impl has nil update (marketplace, manual) get ErrNoAutomatedUpdate.
 func Update(t manifest.Theme, opts Options) error {
-	switch t.Install.Type {
-	case "curl", "gui-import":
-		return refetch(t, opts)
-	case "clone":
-		return gitPull(t, opts)
-	case "vscode-ext":
-		return reinstallVSCodeExt(t, opts)
-	case "marketplace", "manual":
-		return ErrNoAutomatedUpdate
-	default:
+	impl, ok := installers[t.Install.Type]
+	if !ok {
 		return fmt.Errorf("unknown install type %q for theme %q", t.Install.Type, t.Theme.Slug)
 	}
+	if impl.update == nil {
+		return ErrNoAutomatedUpdate
+	}
+	return impl.update(t, opts)
 }
 
 func refetch(t manifest.Theme, opts Options) error {

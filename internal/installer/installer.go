@@ -196,6 +196,60 @@ type Options struct {
 	DryRun bool
 }
 
+// installerImpl bundles the per-type handlers for one install type
+// (curl, clone, etc.). The registry below maps each install.type
+// string to its impl — Install, Update, and Uninstall all dispatch
+// through that one map instead of three parallel switch statements.
+//
+// Adding a new install type means: write the install/update funcs
+// (and an uninstall hook if the type needs one beyond the generic
+// CreatedPaths + Backups reversal), then add one entry to installers.
+// No changes to Install/Update/Uninstall themselves.
+type installerImpl struct {
+	// install fetches assets and returns the populated record. Required.
+	install func(t manifest.Theme, rec state.Record, opts Options) (state.Record, error)
+
+	// update re-fetches assets without re-running activation. Optional —
+	// nil means this install type has no automated update path
+	// (marketplace and manual are the obvious cases) and Update returns
+	// ErrNoAutomatedUpdate.
+	update func(t manifest.Theme, opts Options) error
+
+	// uninstallExtra runs after the generic reversal (deleting
+	// CreatedPaths, restoring Backups, removing AppendedLine). Optional —
+	// only types whose install didn't write to disk directly need this
+	// (vscode-ext shells out to `code --uninstall-extension`).
+	uninstallExtra func(rec state.Record, t manifest.Theme, opts Options) error
+}
+
+var installers = map[string]installerImpl{
+	"curl": {
+		install: doCurl,
+		update:  refetch,
+	},
+	"clone": {
+		install: doClone,
+		update:  gitPull,
+	},
+	"vscode-ext": {
+		install:        doVSCodeExt,
+		update:         reinstallVSCodeExt,
+		uninstallExtra: uninstallVSCodeExt,
+	},
+	"marketplace": {
+		install: doMarketplace,
+		// no update — opening the page is a manual action
+	},
+	"gui-import": {
+		install: doGUIImport,
+		update:  refetch,
+	},
+	"manual": {
+		install: doManual,
+		// no update — manual instructions are inherently manual
+	},
+}
+
 // Install runs the install step for theme t. On success the returned
 // Record is populated with reversal info (created paths, etc.) but
 // its Activate fields are still empty — the activator fills those.
@@ -206,23 +260,11 @@ func Install(t manifest.Theme, opts Options) (state.Record, error) {
 		InstallType:  t.Install.Type,
 		ActivateType: t.Activate.Type,
 	}
-
-	switch t.Install.Type {
-	case "curl":
-		return doCurl(t, rec, opts)
-	case "clone":
-		return doClone(t, rec, opts)
-	case "vscode-ext":
-		return doVSCodeExt(t, rec, opts)
-	case "marketplace":
-		return doMarketplace(t, rec, opts)
-	case "gui-import":
-		return doGUIImport(t, rec, opts)
-	case "manual":
-		return doManual(t, rec, opts)
-	default:
+	impl, ok := installers[t.Install.Type]
+	if !ok {
 		return rec, fmt.Errorf("unknown install type %q for theme %q", t.Install.Type, t.Theme.Slug)
 	}
+	return impl.install(t, rec, opts)
 }
 
 // Detect runs the manifest's detect_command; non-zero exit → tool not
