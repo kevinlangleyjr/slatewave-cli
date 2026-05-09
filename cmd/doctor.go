@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/installer"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/jsonout"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/tui"
@@ -18,6 +20,7 @@ import (
 var (
 	doctorFix    bool
 	doctorDryRun bool
+	doctorJSON   bool
 )
 
 // doctor walks every state record and classifies it. Read-only: no
@@ -64,6 +67,10 @@ the report or run ` + "`slatewave list`" + ` to silently reconcile stale + orpha
 			return fmt.Errorf("load state: %w", err)
 		}
 
+		if doctorJSON {
+			return renderDoctorJSON(s)
+		}
+
 		if len(s.Records) == 0 {
 			ui.MutedLn("Nothing installed yet — `slatewave install <theme>` to get started.")
 			return nil
@@ -102,7 +109,58 @@ the report or run ` + "`slatewave list`" + ` to silently reconcile stale + orpha
 func init() {
 	doctorCmd.Flags().BoolVar(&doctorFix, "fix", false, "Interactively remediate stale, missing-tool, and orphan rows")
 	doctorCmd.Flags().BoolVar(&doctorDryRun, "dry-run", false, "With --fix, show the dashboard without writing")
+	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "Emit machine-readable JSON to stdout (incompatible with --fix)")
 	rootCmd.AddCommand(doctorCmd)
+}
+
+// renderDoctorJSON emits the diagnose() output as JSON: per-theme
+// rows with status / detail / remedy plus a summary count. Empty
+// state still produces a well-formed object (themes: [], summary
+// all-zero) so consumers can tell "no records" apart from a parse
+// failure.
+func renderDoctorJSON(s *state.Store) error {
+	out := jsonout.DoctorOutput{Themes: make([]jsonout.DoctorRow, 0)}
+	if len(s.Records) > 0 {
+		for _, r := range diagnose(s) {
+			out.Themes = append(out.Themes, jsonout.DoctorRow{
+				Slug:   r.slug,
+				Name:   r.name,
+				Status: doctorStatusString(r.status),
+				Detail: r.detail,
+				Remedy: r.remedy,
+			})
+			switch r.status {
+			case statusHealthy:
+				out.Summary.Healthy++
+			case statusStale:
+				out.Summary.Stale++
+			case statusMissingTool:
+				out.Summary.MissingTool++
+			case statusOrphan:
+				out.Summary.Orphan++
+			}
+		}
+	}
+	enc := json.NewEncoder(ui.W)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+// doctorStatusString maps the internal iota enum to the wire-format
+// string. Pinned here so renaming the enum or rebalancing values
+// can't accidentally change the JSON contract.
+func doctorStatusString(s doctorStatus) string {
+	switch s {
+	case statusHealthy:
+		return "healthy"
+	case statusStale:
+		return "stale"
+	case statusMissingTool:
+		return "missing-tool"
+	case statusOrphan:
+		return "orphan"
+	}
+	return "unknown"
 }
 
 // runDoctorFix maps fixable doctor rows to tui.Fix entries, hands them to the picker so the user can confirm or deselect, then runs the dashboard. Healthy rows are filtered out before the picker — there's nothing to fix.
