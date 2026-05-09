@@ -16,9 +16,19 @@ import (
 	"context"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/verbose"
 )
+
+// stdioWaitDelay caps how long exec waits for stdio pipes to drain
+// after the process is terminated. Without this (zero default), a
+// command like `sh -c "sleep 60"` whose child grabs the parent's
+// stdout would hang CombinedOutput forever: ctx cancel kills sh,
+// but sleep gets reparented to init and keeps the pipes open.
+// 100ms is plenty for any legit drain; anything beyond is a
+// detached child the timeout was supposed to cut loose.
+const stdioWaitDelay = 100 * time.Millisecond
 
 // Run executes command via the OS-appropriate shell and returns the
 // combined stdout+stderr output. ctx cancels the underlying process
@@ -39,8 +49,12 @@ func RunInherit(ctx context.Context, command string) error {
 }
 
 func cmdFor(ctx context.Context, command string) *exec.Cmd {
+	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		return exec.CommandContext(ctx, "cmd", "/C", command)
+		cmd = exec.CommandContext(ctx, "cmd", "/C", command)
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-c", command)
 	}
-	return exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.WaitDelay = stdioWaitDelay
+	return cmd
 }
