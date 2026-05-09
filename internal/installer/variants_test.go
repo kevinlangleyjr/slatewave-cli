@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -159,6 +160,9 @@ func prependPath(t *testing.T, dir string) {
 }
 
 func TestDetectVersion_RegexCapture(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary uses #!/bin/sh shebang; Windows would need a .cmd/.bat/.exe — covered on linux/macos")
+	}
 	dir := writeFakeBin(t, "lsd", "#!/bin/sh\necho 'lsd 1.0.5'\n")
 	prependPath(t, dir)
 
@@ -178,6 +182,9 @@ func TestDetectVersion_RegexCapture(t *testing.T) {
 }
 
 func TestDetectVersion_RegexMisses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary uses #!/bin/sh shebang; Windows would need a .cmd/.bat/.exe — covered on linux/macos")
+	}
 	dir := writeFakeBin(t, "lsd", "#!/bin/sh\necho 'unrelated output'\n")
 	prependPath(t, dir)
 
