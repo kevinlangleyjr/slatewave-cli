@@ -16,12 +16,15 @@ import (
 	"context"
 	"os/exec"
 	"runtime"
+
+	"github.com/kevinlangleyjr/slatewave-cli/internal/verbose"
 )
 
 // Run executes command via the OS-appropriate shell and returns the
 // combined stdout+stderr output. ctx cancels the underlying process
 // (used by the TUI's per-detect timeout).
 func Run(ctx context.Context, command string) ([]byte, error) {
+	verbose.Log("shell: %s", command)
 	return cmdFor(ctx, command).CombinedOutput()
 }
 
@@ -31,6 +34,7 @@ func Run(ctx context.Context, command string) ([]byte, error) {
 // rather than have it disappear into a buffer that's only printed on
 // failure.
 func RunInherit(ctx context.Context, command string) error {
+	verbose.Log("shell: %s", command)
 	return cmdFor(ctx, command).Run()
 }
 
