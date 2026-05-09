@@ -3,6 +3,7 @@ package installer
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -25,16 +26,26 @@ import (
 // On --dry-run, walks through what would happen but mutates nothing.
 func Uninstall(rec state.Record, t manifest.Theme, opts Options) error {
 	// Restore backups first — if a backup restore fails, we want to
-	// know before deleting any installed files.
+	// know before deleting any installed files. Routed through
+	// writeAtomic so a mid-write failure (disk full, kernel signal)
+	// can't corrupt the user's original config: either the rename
+	// completes and they're back to the pre-install state, or it
+	// doesn't and the activated file is still in place + the .bak
+	// is still there for them to recover manually.
 	for _, b := range rec.Backups {
 		if opts.DryRun {
 			continue
 		}
-		data, err := os.ReadFile(b.Path)
+		src, err := os.Open(b.Path)
 		if err != nil {
 			return fmt.Errorf("read backup %s: %w", b.Path, err)
 		}
-		if err := os.WriteFile(b.Original, data, 0o644); err != nil {
+		err = writeAtomic(b.Original, 0o644, func(w io.Writer) error {
+			_, err := io.Copy(w, src)
+			return err
+		})
+		_ = src.Close()
+		if err != nil {
 			return fmt.Errorf("restore %s from %s: %w", b.Original, b.Path, err)
 		}
 		_ = os.Remove(b.Path)

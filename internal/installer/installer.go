@@ -109,7 +109,13 @@ func copyCapped(dst io.Writer, body io.Reader, url string) error {
 // on any error along the way (callback failure, close failure, rename
 // failure) so a failed write doesn't leak `.slatewave-write-*` files
 // into the user's config dirs.
-func writeAtomic(dest string, write func(io.Writer) error) error {
+//
+// mode is chmod'd onto the temp file before rename. os.CreateTemp
+// defaults to 0o600, which would silently downgrade theme files vs.
+// the os.Create(dest) shape this helper replaced — callers pass an
+// explicit mode (typically 0o644 for fresh writes; preservedMode of
+// the existing file when overwriting user config).
+func writeAtomic(dest string, mode os.FileMode, write func(io.Writer) error) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return fmt.Errorf("create dest dir: %w", err)
 	}
@@ -129,6 +135,9 @@ func writeAtomic(dest string, write func(io.Writer) error) error {
 	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("close temp: %w", err)
+	}
+	if err := os.Chmod(tmp.Name(), mode); err != nil {
+		return fmt.Errorf("chmod temp: %w", err)
 	}
 	if err := os.Rename(tmp.Name(), dest); err != nil {
 		return fmt.Errorf("rename temp to %s: %w", dest, err)
@@ -158,7 +167,7 @@ func fetchAtomic(url, dest string) error {
 	if err := rejectHTMLContentType(url, resp.Header.Get("Content-Type")); err != nil {
 		return err
 	}
-	return writeAtomic(dest, func(w io.Writer) error {
+	return writeAtomic(dest, 0o644, func(w io.Writer) error {
 		return copyCapped(w, resp.Body, url)
 	})
 }
