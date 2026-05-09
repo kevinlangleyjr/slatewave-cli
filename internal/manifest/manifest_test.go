@@ -232,6 +232,119 @@ func TestEmbeddedManifests_FieldsByActivateType(t *testing.T) {
 	}
 }
 
+// TestEmbeddedManifests_VersionAwareConsistency makes sure that any
+// manifest declaring install.variants also sets theme.version_regex —
+// a variant without a regex has no way to extract the version it
+// matches against, so the install would hard-fail at runtime. Pairs
+// with the load-time guard in registry.go.
+func TestEmbeddedManifests_VersionAwareConsistency(t *testing.T) {
+	all, _ := LoadAll()
+	for _, th := range all {
+		if len(th.Install.Variants) > 0 && th.Theme.VersionRegex == "" {
+			t.Errorf("%s: install.variants requires theme.version_regex", th.Theme.Slug)
+		}
+		for i, v := range th.Install.Variants {
+			if v.WhenVersion == "" {
+				t.Errorf("%s: install.variants[%d] missing when_version", th.Theme.Slug, i)
+			}
+		}
+	}
+}
+
+// TestLoadFromDir_VariantsRequireVersionRegex confirms the runtime
+// guard fires for a malformed manifest in SLATEWAVE_MANIFESTS_DIR — the
+// path future v0.2 fetched manifests will travel.
+func TestLoadFromDir_VariantsRequireVersionRegex(t *testing.T) {
+	dir := t.TempDir()
+	body := `
+[theme]
+slug = "broken"
+name = "Broken"
+category = "editor"
+detect_command = "true"
+
+[install]
+type = "curl"
+url = "https://example.com/x"
+dest = "/tmp/x"
+
+[[install.variants]]
+when_version = "<1.0.0"
+url = "https://example.com/y"
+`
+	if err := os.WriteFile(dir+"/broken.toml", []byte(body), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	prev := LocalDir
+	LocalDir = dir
+	t.Cleanup(func() { LocalDir = prev })
+
+	_, err := LoadAll()
+	if err == nil {
+		t.Fatal("LoadAll should error on variants without version_regex")
+	}
+	if !strings.Contains(err.Error(), "version_regex") {
+		t.Errorf("error should mention version_regex: %v", err)
+	}
+}
+
+// TestLoadFromDir_VariantsRoundtrip confirms BurntSushi/toml decodes
+// the new [[install.variants]] block into the InstallVariant slice.
+func TestLoadFromDir_VariantsRoundtrip(t *testing.T) {
+	dir := t.TempDir()
+	body := `
+[theme]
+slug = "ok"
+name = "OK"
+category = "terminal"
+detect_command = "ok --version"
+version_regex = "ok ([0-9]+\\.[0-9]+\\.[0-9]+)"
+
+[install]
+type = "curl"
+url = "https://example.com/default.yaml"
+dest = "/tmp/x"
+
+[[install.variants]]
+when_version = "<1.1.0"
+url = "https://example.com/legacy.yaml"
+
+[[install.variants]]
+when_version = ">=2.0.0"
+dest = "/tmp/y"
+`
+	if err := os.WriteFile(dir+"/ok.toml", []byte(body), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	prev := LocalDir
+	LocalDir = dir
+	t.Cleanup(func() { LocalDir = prev })
+
+	all, err := LoadAll()
+	if err != nil {
+		t.Fatalf("LoadAll: %v", err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("got %d themes, want 1", len(all))
+	}
+	th := all[0]
+	if th.Theme.VersionRegex == "" {
+		t.Error("VersionRegex not parsed")
+	}
+	if len(th.Install.Variants) != 2 {
+		t.Fatalf("got %d variants, want 2", len(th.Install.Variants))
+	}
+	if th.Install.Variants[0].WhenVersion != "<1.1.0" {
+		t.Errorf("variant[0].WhenVersion = %q", th.Install.Variants[0].WhenVersion)
+	}
+	if th.Install.Variants[0].URL != "https://example.com/legacy.yaml" {
+		t.Errorf("variant[0].URL = %q", th.Install.Variants[0].URL)
+	}
+	if th.Install.Variants[1].Dest != "/tmp/y" {
+		t.Errorf("variant[1].Dest = %q", th.Install.Variants[1].Dest)
+	}
+}
+
 // TestEmbeddedManifests_HaveDetectCommand requires every manifest to
 // declare a detect_command. Detection is the safety net that makes
 // `slatewave install bat` fail cleanly with "bat not detected" when

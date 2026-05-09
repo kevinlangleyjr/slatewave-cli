@@ -253,12 +253,33 @@ var installers = map[string]installerImpl{
 // Install runs the install step for theme t. On success the returned
 // Record is populated with reversal info (created paths, etc.) but
 // its Activate fields are still empty — the activator fills those.
+//
+// When the manifest declares Install.Variants, Install first detects
+// the installed tool version (via Theme.DetectCommand + VersionRegex)
+// and overlays the matching variant's URL/Dest/Files onto t.Install
+// before dispatch. A version-detect failure or unmatched-but-required
+// variant is propagated as a normal install error — never silently
+// fall back, since that would re-ship the wrong file to exactly the
+// hosts the variant exists to handle.
 func Install(t manifest.Theme, opts Options) (state.Record, error) {
 	rec := state.Record{
 		Slug:         t.Theme.Slug,
 		InstalledAt:  time.Now().UTC(),
 		InstallType:  t.Install.Type,
 		ActivateType: t.Activate.Type,
+	}
+	if len(t.Install.Variants) > 0 {
+		ver, err := detectVersion(t)
+		if err != nil {
+			return rec, fmt.Errorf("detect version for %q: %w", t.Theme.Slug, err)
+		}
+		if ver != "" {
+			v, err := resolveVariant(t.Install.Variants, ver)
+			if err != nil {
+				return rec, fmt.Errorf("resolve variant for %q: %w", t.Theme.Slug, err)
+			}
+			t.Install = applyVariant(t.Install, v)
+		}
 	}
 	impl, ok := installers[t.Install.Type]
 	if !ok {

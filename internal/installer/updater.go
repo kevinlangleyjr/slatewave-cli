@@ -20,7 +20,26 @@ var ErrNoAutomatedUpdate = errors.New("no automated update for this install type
 //
 // Dispatch goes through the same installers registry as Install. Types
 // whose impl has nil update (marketplace, manual) get ErrNoAutomatedUpdate.
+//
+// Like Install, Update applies version-aware variant overrides before
+// dispatch so a re-fetch picks the file matching the *currently*
+// installed tool version (the user may have upgraded since the last
+// install — pulling the wrong variant after that would re-introduce
+// the version-mismatch bug variants exist to fix).
 func Update(t manifest.Theme, opts Options) error {
+	if len(t.Install.Variants) > 0 {
+		ver, err := detectVersion(t)
+		if err != nil {
+			return fmt.Errorf("detect version for %q: %w", t.Theme.Slug, err)
+		}
+		if ver != "" {
+			v, err := resolveVariant(t.Install.Variants, ver)
+			if err != nil {
+				return fmt.Errorf("resolve variant for %q: %w", t.Theme.Slug, err)
+			}
+			t.Install = applyVariant(t.Install, v)
+		}
+	}
 	impl, ok := installers[t.Install.Type]
 	if !ok {
 		return fmt.Errorf("unknown install type %q for theme %q", t.Install.Type, t.Theme.Slug)

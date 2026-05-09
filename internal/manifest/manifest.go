@@ -41,6 +41,13 @@ type Meta struct {
 	// unix detect uses POSIX-only forms like `command -v <tool>`;
 	// use `where <tool>` or `<tool> --version` on Windows.
 	DetectCommandWindows string `toml:"detect_command_windows"`
+	// VersionRegex extracts an X.Y.Z version from DetectCommand stdout.
+	// Capture group 1 must hold the version. Required when Install.Variants
+	// is non-empty (manifest validation rejects variants without it);
+	// otherwise unused. Lets one manifest dispatch its install URL based
+	// on the installed tool's version — e.g. lsd 1.0.x silently ignores
+	// hex colors and needs an ANSI-256 variant.
+	VersionRegex string `toml:"version_regex"`
 }
 
 // Install describes how to put the theme files in place.
@@ -92,6 +99,14 @@ type Install struct {
 	// manual-specific
 	Instructions []string `toml:"instructions"`
 
+	// Variants are version-conditional install overrides. When a variant's
+	// WhenVersion constraint matches the version captured via
+	// Meta.VersionRegex, its URL/Dest/Files override the parent fields.
+	// First match wins (declaration order). Empty slice = no version logic.
+	// Backward-compatible: every existing manifest leaves this empty and
+	// behavior is unchanged.
+	Variants []InstallVariant `toml:"variants"`
+
 	// Optional post-install hook — a command to run after the file is
 	// in place (e.g. `bat cache --build`).
 	Post *PostHook `toml:"post"`
@@ -109,6 +124,22 @@ type Install struct {
 type InstallFile struct {
 	URL  string `toml:"url"`
 	Dest string `toml:"dest"`
+}
+
+// InstallVariant overrides Install.URL, Install.Dest, and/or Install.Files
+// when WhenVersion matches the detected tool version. Only those three
+// fields are honored as overrides in v1; everything else falls through to
+// the parent Install. When a variant sets Files, the parent's URL/Dest
+// are cleared (variants flip the install between single-file and
+// multi-file shape as a unit).
+type InstallVariant struct {
+	// WhenVersion is the constraint expression: "<X.Y.Z", "<=X.Y.Z",
+	// ">X.Y.Z", ">=X.Y.Z", "=X.Y.Z", or bare "X.Y.Z" (treated as exact
+	// match). Anything else is rejected at install time.
+	WhenVersion string        `toml:"when_version"`
+	URL         string        `toml:"url"`
+	Dest        string        `toml:"dest"`
+	Files       []InstallFile `toml:"files"`
 }
 
 // PostHook runs after a successful install.
