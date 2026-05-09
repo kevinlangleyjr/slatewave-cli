@@ -100,6 +100,47 @@ func TestListCmd_ShowsBothOnDarwin(t *testing.T) {
 	}
 }
 
+// When list silently drops stale state records (theme uninstalled
+// outside the CLI), it should now surface that to the user with a
+// one-line footer instead of mutating state with no signal. Seed a
+// state record for a manifest whose verify command fails; assert the
+// footer fires.
+func TestListCmd_ReconcileDropFooterFires(t *testing.T) {
+	defer manifest.SetGOOSForTest("darwin")()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"drifted": manifestVerifyFails})
+	env.putRecord(t, state.Record{Slug: "drifted", InstallType: "manual"})
+
+	if err := listCmd.RunE(listCmd, nil); err != nil {
+		t.Fatalf("listCmd.RunE: %v", err)
+	}
+
+	out := env.out.String()
+	if !strings.Contains(out, "Dropped 1 stale record") {
+		t.Errorf("expected reconcile footer, got:\n%s", out)
+	}
+}
+
+// Conversely, a healthy state must NOT print the reconcile footer —
+// noise on the happy path is worse than silence.
+func TestListCmd_NoReconcileFooterWhenClean(t *testing.T) {
+	defer manifest.SetGOOSForTest("darwin")()
+
+	env := setupCmdEnv(t)
+	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
+
+	if err := listCmd.RunE(listCmd, nil); err != nil {
+		t.Fatalf("listCmd.RunE: %v", err)
+	}
+
+	out := env.out.String()
+	if strings.Contains(out, "Dropped") {
+		t.Errorf("unexpected reconcile footer on healthy state:\n%s", out)
+	}
+}
+
 // --json output is what scripts and CI dotfiles bootstraps depend on.
 // Asserts the wire shape: themes array carries every supported slug
 // from the registry, installed flag flips for state-recorded entries,

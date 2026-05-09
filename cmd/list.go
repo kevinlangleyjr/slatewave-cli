@@ -48,8 +48,9 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 		// theme's verify command. Drop stale records and persist.
 		// state.Update brackets the load/mutate/save under a file lock so
 		// a concurrent install can't clobber our reconcile.
+		var reconciled int
 		_ = state.Update(func(s *state.Store) error {
-			reconcileWithReality(s)
+			reconciled = reconcileWithReality(s)
 			return nil
 		})
 		s, err := state.Load()
@@ -109,8 +110,23 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 		footer := summary(footerThemes, s)
 
 		fmt.Fprintln(ui.W, ui.Box.Render(header+"\n\n"+body+"\n\n"+footer))
+		if reconciled > 0 {
+			ui.MutedLn(fmt.Sprintf("Dropped %s from state — verify failed (theme uninstalled outside the CLI).",
+				pluralize(reconciled, "stale record", "stale records")))
+		}
 		return nil
 	},
+}
+
+// pluralize returns "<n> singular" for n=1 and "<n> plural" otherwise.
+// Used to keep the reconcile footer human-readable for both the
+// one-record case ("1 stale record") and the many-records case
+// ("3 stale records").
+func pluralize(n int, singular, plural string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, singular)
+	}
+	return fmt.Sprintf("%d %s", n, plural)
 }
 
 func init() {
