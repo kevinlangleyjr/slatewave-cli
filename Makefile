@@ -67,6 +67,10 @@ smoke: build ## Dry-run install for every embedded theme — exercises every man
 		echo; \
 	done
 
+.PHONY: validate-manifests
+validate-manifests: ## TOML→JSON-roundtrip every embedded manifest and validate against schemas/manifest.schema.json.
+	$(GO) test -count=1 -run TestEmbeddedManifests_ValidateAgainstSchema ./internal/manifest/
+
 .PHONY: clean
 clean: ## Remove the built binary and coverage artifacts.
 	rm -f $(BINARY) coverage.out

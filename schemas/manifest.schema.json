@@ -32,6 +32,15 @@
           "type": "string",
           "minLength": 1,
           "description": "Shell command run to verify the underlying tool is installed before any install action. Non-zero exit → CLI errors with \"<tool> not detected\" without modifying any files."
+        },
+        "detect_command_windows": {
+          "type": "string",
+          "description": "Windows-specific override of detect_command. Used when the unix detect uses POSIX-only forms like `command -v <tool>` and a cmd.exe-parseable equivalent is needed (`where <tool>`, `<tool> --version`, etc.). Empty → fall back to detect_command."
+        },
+        "supported_os": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["darwin", "linux", "windows"] },
+          "description": "OS values from runtime.GOOS this manifest claims to work on. Empty/unset defaults to [\"darwin\", \"linux\"] — pre-Windows behavior. Cross-platform manifests must list \"windows\" explicitly so that an unaudited manifest can't accidentally be offered to (and fail mid-install on) Windows users."
         }
       }
     },
@@ -90,6 +99,10 @@
         "identifier": {
           "type": "string",
           "description": "VSCode extension ID (vscode-ext), e.g. \"kevinlangleyjr.slatewave\"."
+        },
+        "cli": {
+          "type": "string",
+          "description": "Override the binary the vscode-ext handler shells out to. Defaults to \"code\". Set to \"cursor\" for Cursor, \"codium\" for VSCodium, etc. Every editor in the family accepts the same `--install-extension` / `--list-extensions` / `--uninstall-extension` flags, so only the binary name varies."
         },
         "instructions": {
           "type": "array",
@@ -153,6 +166,15 @@
           "type": "string",
           "description": "Line to append (shell-rc)."
         },
+        "files_windows": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "PowerShell-profile equivalents of `files`, used when runtime.GOOS == \"windows\" (shell-rc). A manifest declaring supported_os = [..., \"windows\"] must set both files_windows and line_windows together — without them the activator errors cleanly rather than appending bash syntax to a .ps1 file."
+        },
+        "line_windows": {
+          "type": "string",
+          "description": "PowerShell equivalent of `line` (shell-rc)."
+        },
         "scaffold": {
           "type": "string",
           "description": "Full file contents written when the chosen target is missing or whitespace-only (shell-rc). For configs where appending one line to an empty file produces invalid syntax (e.g. wezterm.lua: `config.color_scheme = ...` requires `local config = wezterm.config_builder()` first). Should already include the activation line — `line` is only re-appended when the file already had real content."
@@ -206,6 +228,10 @@
         "command": {
           "type": "string",
           "description": "Shell command. Non-zero exit means the install no longer detectable."
+        },
+        "command_windows": {
+          "type": "string",
+          "description": "Windows-specific override of command. Empty → fall back to command. Use when the unix verify shells out to `test -f` / `grep` / etc. and a cmd.exe-parseable equivalent is needed."
         },
         "expect": {
           "type": "string",
