@@ -100,6 +100,69 @@ func copyCapped(dst io.Writer, body io.Reader, url string) error {
 	return nil
 }
 
+// writeAtomic streams the bytes the caller writes via the `write`
+// callback into a temp file in dest's directory, then renames over
+// dest. Either dest ends up with the full new content, or it stays
+// untouched — partial files never appear at the destination path.
+//
+// The parent directory is created if missing. The temp file is removed
+// on any error along the way (callback failure, close failure, rename
+// failure) so a failed write doesn't leak `.slatewave-write-*` files
+// into the user's config dirs.
+func writeAtomic(dest string, write func(io.Writer) error) error {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return fmt.Errorf("create dest dir: %w", err)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(dest), ".slatewave-write-*")
+	if err != nil {
+		return fmt.Errorf("create temp: %w", err)
+	}
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmp.Name())
+		}
+	}()
+	if err := write(tmp); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp: %w", err)
+	}
+	if err := os.Rename(tmp.Name(), dest); err != nil {
+		return fmt.Errorf("rename temp to %s: %w", dest, err)
+	}
+	cleanup = false
+	return nil
+}
+
+// fetchAtomic downloads url and writes the response to dest atomically
+// (temp + rename). Replaces both the install-side fetchToFile (was
+// non-atomic — could leave partial files on interrupt) and the
+// update-side atomicRefetch (already had this shape). One implementation
+// for both flows means the install path now gets the same corruption
+// guarantee the update path always had.
+//
+// Status, content-type, and body-size guards run before any write hits
+// the temp file.
+func fetchAtomic(url, dest string) error {
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return fmt.Errorf("fetch %s: %w", url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("fetch %s: %s", url, resp.Status)
+	}
+	if err := rejectHTMLContentType(url, resp.Header.Get("Content-Type")); err != nil {
+		return err
+	}
+	return writeAtomic(dest, func(w io.Writer) error {
+		return copyCapped(w, resp.Body, url)
+	})
+}
+
 // Options controls install behavior at the call site.
 type Options struct {
 	DryRun bool
@@ -192,7 +255,7 @@ func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, err
 		if err != nil {
 			return rec, err
 		}
-		if err := fetchToFile(f.URL, dest); err != nil {
+		if err := fetchAtomic(f.URL, dest); err != nil {
 			return rec, err
 		}
 		rec.CreatedPaths = append(rec.CreatedPaths, dest)
@@ -203,40 +266,6 @@ func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, err
 		}
 	}
 	return rec, nil
-}
-
-// fetchToFile downloads url to dest, creating intermediate dirs and
-// truncating any existing file at the destination. Returns wrapped
-// errors keyed on the URL/path so multi-file installs surface which
-// asset failed.
-func fetchToFile(url, dest string) error {
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return fmt.Errorf("create dest dir: %w", err)
-	}
-	resp, err := httpClient.Get(url)
-	if err != nil {
-		return fmt.Errorf("fetch %s: %w", url, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("fetch %s: %s", url, resp.Status)
-	}
-	if err := rejectHTMLContentType(url, resp.Header.Get("Content-Type")); err != nil {
-		return err
-	}
-	f, err := os.Create(dest)
-	if err != nil {
-		return fmt.Errorf("write %s: %w", dest, err)
-	}
-	defer func() { _ = f.Close() }()
-	if err := copyCapped(f, resp.Body, url); err != nil {
-		// On overflow / mid-copy error, leave nothing partial behind —
-		// state hasn't been written yet, the dest dir would otherwise be
-		// holding an unfinished theme file the caller would treat as good.
-		_ = os.Remove(dest)
-		return fmt.Errorf("write %s: %w", dest, err)
-	}
-	return nil
 }
 
 // ----- type: clone -----
