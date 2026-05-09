@@ -69,7 +69,7 @@ func atomicRefetch(url, dest string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return fmt.Errorf("create dest dir: %w", err)
 	}
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("fetch %s: %w", url, err)
 	}

@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 )
@@ -141,6 +142,36 @@ func TestDoCurl_MissingURLErrors(t *testing.T) {
 	_, err := Install(th, Options{})
 	if err == nil || !strings.Contains(err.Error(), "no install.url") {
 		t.Errorf("missing URL: err = %v, want `no install.url`", err)
+	}
+}
+
+// A server that hangs forever shouldn't hang the CLI. The package-level
+// httpClient sets a 60s ceiling; the test shortens it to a few hundred
+// ms so the assertion is fast. A failure here means a flaky-network user
+// would see `slatewave install` freeze with no feedback.
+//
+// The handler blocks on the request context — when the client times out
+// and drops the connection, the server cancels the context, so srv.Close()
+// can return without deadlocking on a still-running handler.
+func TestDoCurl_HungServerHitsHTTPTimeout(t *testing.T) {
+	defer SetHTTPTimeoutForTest(200 * time.Millisecond)()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	th := curlTheme(srv.URL, dir, "x.tmTheme")
+
+	start := time.Now()
+	_, err := Install(th, Options{})
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("hung server: want timeout error, got nil")
+	}
+	if elapsed > 5*time.Second {
+		t.Errorf("hung server: timeout fired after %v, want ~200ms", elapsed)
 	}
 }
 
