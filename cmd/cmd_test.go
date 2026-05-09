@@ -6,10 +6,43 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
+
+// setFlags sets the named cobra flags to the given string values and
+// returns a reset closure that restores them to their default zero
+// value. Used by tests that need to drive a command through its flag
+// surface — replaces the older pattern of mutating package-level
+// vars directly. Pass the closure to defer/cleanup.
+//
+// Default value for restoration is "false" for bools and "" for
+// strings; this matches how every flag is currently registered
+// (BoolVar / StringVar with a false / "" default).
+func setFlags(t *testing.T, cmd *cobra.Command, values map[string]string) func() {
+	t.Helper()
+	prev := map[string]string{}
+	for name := range values {
+		f := cmd.Flags().Lookup(name)
+		if f == nil {
+			t.Fatalf("flag %q not registered on %q", name, cmd.Name())
+		}
+		prev[name] = f.Value.String()
+	}
+	for name, val := range values {
+		if err := cmd.Flags().Set(name, val); err != nil {
+			t.Fatalf("set flag %q=%q: %v", name, val, err)
+		}
+	}
+	return func() {
+		for name, val := range prev {
+			_ = cmd.Flags().Set(name, val)
+		}
+	}
+}
 
 // cmdEnv isolates HOME (for state.Load), redirects ui.W into a buffer
 // for output assertions, and lets the caller swap the manifest set via

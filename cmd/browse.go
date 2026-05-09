@@ -66,10 +66,15 @@ func runBrowse(_ *cobra.Command, _ []string) error {
 	switch action.Kind {
 	case tui.BrowseInstall:
 		fmt.Fprintln(ui.W)
-		return installInteractiveTUI([]string{action.Slug})
+		// Browser-driven installs are inherently interactive — the user
+		// just picked a row in a TUI. Pass a default-zero installFlags;
+		// dry-run / category etc. don't apply when the choice is single.
+		return installInteractiveTUI([]string{action.Slug}, installFlags{})
 	case tui.BrowseUninstall:
 		fmt.Fprintln(ui.W)
-		return uninstallOne(action.Slug)
+		// Browser-driven uninstalls don't expose --dry-run / --category
+		// in the TUI; pass zero-value uninstallFlags.
+		return uninstallOne(action.Slug, uninstallFlags{})
 	}
 	return nil
 }

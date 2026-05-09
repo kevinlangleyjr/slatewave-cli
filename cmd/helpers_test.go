@@ -49,7 +49,7 @@ func TestNoManifestError_FallsBackWhenNoCloseMatch(t *testing.T) {
 // ----- resolveSlugs -----
 
 func TestResolveSlugs_SingleArgPassesThrough(t *testing.T) {
-	got, err := resolveSlugs([]string{"btop"}, false)
+	got, err := resolveSlugs([]string{"btop"}, false, installFlags{})
 	if err != nil {
 		t.Fatalf("resolveSlugs: %v", err)
 	}
@@ -59,11 +59,7 @@ func TestResolveSlugs_SingleArgPassesThrough(t *testing.T) {
 }
 
 func TestResolveSlugs_BulkAllReturnsEverySlug(t *testing.T) {
-	prev := installCategory
-	installCategory = ""
-	defer func() { installCategory = prev }()
-
-	got, err := resolveSlugs(nil, true)
+	got, err := resolveSlugs(nil, true, installFlags{})
 	if err != nil {
 		t.Fatalf("resolveSlugs bulk: %v", err)
 	}
@@ -76,11 +72,7 @@ func TestResolveSlugs_BulkAllReturnsEverySlug(t *testing.T) {
 }
 
 func TestResolveSlugs_BulkWithCategoryFilters(t *testing.T) {
-	prev := installCategory
-	installCategory = "terminal"
-	defer func() { installCategory = prev }()
-
-	got, err := resolveSlugs(nil, true)
+	got, err := resolveSlugs(nil, true, installFlags{Category: "terminal"})
 	if err != nil {
 		t.Fatalf("resolveSlugs --category=terminal: %v", err)
 	}
@@ -101,11 +93,7 @@ func TestResolveSlugs_BulkWithCategoryFilters(t *testing.T) {
 }
 
 func TestResolveSlugs_UnknownCategoryErrors(t *testing.T) {
-	prev := installCategory
-	installCategory = "no-such-category"
-	defer func() { installCategory = prev }()
-
-	_, err := resolveSlugs(nil, true)
+	_, err := resolveSlugs(nil, true, installFlags{Category: "no-such-category"})
 	if err == nil || !strings.Contains(err.Error(), `no themes in category`) {
 		t.Errorf("unknown category: err = %v, want `no themes in category`", err)
 	}
@@ -119,11 +107,7 @@ func TestResolveSlugs_UnknownCategoryErrors(t *testing.T) {
 func TestResolveSlugs_BulkFiltersUnsupportedOS(t *testing.T) {
 	defer manifest.SetGOOSForTest("windows")()
 
-	prev := installCategory
-	installCategory = ""
-	defer func() { installCategory = prev }()
-
-	got, err := resolveSlugs(nil, true)
+	got, err := resolveSlugs(nil, true, installFlags{})
 	if err != nil {
 		t.Fatalf("resolveSlugs --all on windows: %v", err)
 	}

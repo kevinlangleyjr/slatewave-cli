@@ -12,8 +12,6 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
-var infoJSON bool
-
 var infoCmd = &cobra.Command{
 	Use:   "info <theme>",
 	Short: "Show what `slatewave install <theme>` would actually do",
@@ -28,12 +26,12 @@ or for confirming which file slatewave would edit during activation.
 Read-only — info never touches state, install, or uninstall.`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: validInstallArgs,
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		t, err := manifest.LoadOne(args[0])
 		if err != nil {
 			return noManifestError(args[0])
 		}
-		if infoJSON {
+		if flagBool(cmd.Flags(), "json") {
 			return renderInfoJSON(t)
 		}
 		renderInfoHuman(t)
@@ -42,7 +40,7 @@ Read-only — info never touches state, install, or uninstall.`,
 }
 
 func init() {
-	infoCmd.Flags().BoolVar(&infoJSON, "json", false, "Emit machine-readable JSON to stdout (see internal/jsonout for the schema)")
+	infoCmd.Flags().Bool("json", false, "Emit machine-readable JSON to stdout (see internal/jsonout for the schema)")
 	rootCmd.AddCommand(infoCmd)
 }
 

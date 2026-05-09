@@ -28,8 +28,8 @@ func TestStatusCmd_JSONOutputShape(t *testing.T) {
 		Backups:      []state.Backup{{Original: "/tmp/.zshrc", Path: "/tmp/.zshrc.bak"}},
 	})
 
-	t.Cleanup(func() { statusJSON = false })
-	statusJSON = true
+	resetFlags := setFlags(t, statusCmd, map[string]string{"json": "true"})
+	defer resetFlags()
 	if err := statusCmd.RunE(statusCmd, nil); err != nil {
 		t.Fatalf("statusCmd.RunE: %v", err)
 	}
@@ -74,8 +74,8 @@ func TestStatusCmd_JSONUnknownSlugErrors(t *testing.T) {
 	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
 	// No state record — slug isn't installed.
 
-	t.Cleanup(func() { statusJSON = false })
-	statusJSON = true
+	resetFlags := setFlags(t, statusCmd, map[string]string{"json": "true"})
+	defer resetFlags()
 	err := statusCmd.RunE(statusCmd, []string{"okayish"})
 	if err == nil {
 		t.Fatal("expected error for uninstalled slug, got nil")
@@ -95,8 +95,8 @@ func TestDoctorCmd_JSONOutputShape(t *testing.T) {
 	env.putRecord(t, state.Record{Slug: "drifted", InstallType: "manual"})
 	env.putRecord(t, state.Record{Slug: "orphaned", InstallType: "manual"}) // no manifest → orphan
 
-	t.Cleanup(func() { doctorJSON = false })
-	doctorJSON = true
+	resetFlags := setFlags(t, doctorCmd, map[string]string{"json": "true"})
+	defer resetFlags()
 	if err := doctorCmd.RunE(doctorCmd, nil); err != nil {
 		t.Fatalf("doctorCmd.RunE: %v", err)
 	}
@@ -137,8 +137,8 @@ func TestDoctorCmd_JSONEmptyStateIsWellFormed(t *testing.T) {
 	env := setupCmdEnv(t)
 	env.useManifestDir(t, map[string]string{}) // no manifests, no records
 
-	t.Cleanup(func() { doctorJSON = false })
-	doctorJSON = true
+	resetFlags := setFlags(t, doctorCmd, map[string]string{"json": "true"})
+	defer resetFlags()
 	if err := doctorCmd.RunE(doctorCmd, nil); err != nil {
 		t.Fatalf("doctorCmd.RunE: %v", err)
 	}

@@ -16,13 +16,25 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
-var (
-	updateDryRun        bool
-	updateAll           bool
-	updateCategory      string
-	updateInteractive   bool
-	updateNoInteractive bool
-)
+// updateFlags bundles update's parsed flag values.
+type updateFlags struct {
+	DryRun        bool
+	All           bool
+	Category      string
+	Interactive   bool
+	NoInteractive bool
+}
+
+func parseUpdateFlags(cmd *cobra.Command) updateFlags {
+	f := cmd.Flags()
+	return updateFlags{
+		DryRun:        flagBool(f, "dry-run"),
+		All:           flagBool(f, "all"),
+		Category:      flagString(f, "category"),
+		Interactive:   flagBool(f, "interactive"),
+		NoInteractive: flagBool(f, "no-interactive"),
+	}
+}
 
 var updateCmd = &cobra.Command{
 	Use:   "update [theme]",
@@ -42,14 +54,15 @@ type has no automated update path (` + "`marketplace`" + `, ` + "`manual`" + `) 
 with a one-line hint and continue.`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validInstalledArgs,
-	RunE: func(_ *cobra.Command, args []string) error {
-		if updateAll && updateCategory != "" {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		f := parseUpdateFlags(cmd)
+		if f.All && f.Category != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
 		}
-		if updateInteractive && updateNoInteractive {
+		if f.Interactive && f.NoInteractive {
 			return fmt.Errorf("--interactive and --no-interactive are mutually exclusive")
 		}
-		bulk := updateAll || updateCategory != ""
+		bulk := f.All || f.Category != ""
 		if bulk && len(args) > 0 {
 			return fmt.Errorf("don't pass a theme name with --all or --category")
 		}
@@ -61,34 +74,34 @@ with a one-line hint and continue.`,
 		// the dashboard; piped / CI runs fall back to the streaming
 		// summary; --interactive / --no-interactive override either way.
 		switch {
-		case updateInteractive:
-			return updateInteractiveTUI(args, bulk)
-		case updateNoInteractive:
+		case f.Interactive:
+			return updateInteractiveTUI(args, bulk, f)
+		case f.NoInteractive:
 			if !bulk {
-				return updateOne(args[0], false)
+				return updateOne(args[0], false, f)
 			}
-			return updateBulk()
+			return updateBulk(f)
 		case !bulk:
-			return updateOne(args[0], false)
+			return updateOne(args[0], false, f)
 		case isTerminal():
-			return updateInteractiveTUI(args, bulk)
+			return updateInteractiveTUI(args, bulk, f)
 		default:
-			return updateBulk()
+			return updateBulk(f)
 		}
 	},
 }
 
 func init() {
-	updateCmd.Flags().BoolVar(&updateDryRun, "dry-run", false, "Print what would happen without re-fetching")
-	updateCmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed theme")
-	updateCmd.Flags().StringVar(&updateCategory, "category", "", "Update every installed theme in this category")
-	updateCmd.Flags().BoolVar(&updateInteractive, "interactive", false, "Force the live progress dashboard (default for bulk updates on a TTY)")
-	updateCmd.Flags().BoolVar(&updateNoInteractive, "no-interactive", false, "Force streaming output instead of the dashboard (useful for CI / log capture)")
+	updateCmd.Flags().Bool("dry-run", false, "Print what would happen without re-fetching")
+	updateCmd.Flags().Bool("all", false, "Update every installed theme")
+	updateCmd.Flags().String("category", "", "Update every installed theme in this category")
+	updateCmd.Flags().Bool("interactive", false, "Force the live progress dashboard (default for bulk updates on a TTY)")
+	updateCmd.Flags().Bool("no-interactive", false, "Force streaming output instead of the dashboard (useful for CI / log capture)")
 	_ = updateCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
 // updateInteractiveTUI runs the update pipeline through the bubbletea dashboard. Loads each requested slug's manifest, drops marketplace + manual themes (no automated update path — would just clutter the dashboard with "failed: no automated update" rows), and hands the rest to tui.RunFix with FixUpdate. Reuses the fix dashboard since the pipeline is identical (refresh assets + post-hook + bump InstalledAt).
-func updateInteractiveTUI(args []string, bulk bool) error {
+func updateInteractiveTUI(args []string, bulk bool, f updateFlags) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -98,9 +111,9 @@ func updateInteractiveTUI(args []string, bulk bool) error {
 	switch {
 	case bulk:
 		for _, slug := range s.AllSlugs() {
-			if updateCategory != "" {
+			if f.Category != "" {
 				th, err := manifest.LoadOne(slug)
-				if err != nil || th.Theme.Category != updateCategory {
+				if err != nil || th.Theme.Category != f.Category {
 					continue
 				}
 			}
@@ -151,13 +164,13 @@ func updateInteractiveTUI(args []string, bulk bool) error {
 		return nil
 	}
 
-	return tui.RunFix(fixes, tui.FixOptions{DryRun: updateDryRun, Title: "Updating"})
+	return tui.RunFix(fixes, tui.FixOptions{DryRun: f.DryRun, Title: "Updating"})
 }
 
 // updateBulk iterates every installed slug, optionally filtered by
 // category, calling updateOne for each. Individual failures are reported
 // and the run continues.
-func updateBulk() error {
+func updateBulk(f updateFlags) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -172,7 +185,7 @@ func updateBulk() error {
 			// skips it silently.
 			continue
 		}
-		if updateCategory != "" && th.Theme.Category != updateCategory {
+		if f.Category != "" && th.Theme.Category != f.Category {
 			continue
 		}
 		// State.json may have been seeded on a different OS (dual boot,
@@ -185,8 +198,8 @@ func updateBulk() error {
 		slugs = append(slugs, slug)
 	}
 	if len(slugs) == 0 {
-		if updateCategory != "" {
-			return fmt.Errorf("no installed themes in category %q", updateCategory)
+		if f.Category != "" {
+			return fmt.Errorf("no installed themes in category %q", f.Category)
 		}
 		ui.MutedLn("Nothing to update — no themes installed.")
 		return nil
@@ -197,7 +210,7 @@ func updateBulk() error {
 		if i > 0 {
 			fmt.Fprintln(ui.W)
 		}
-		err := updateOne(slug, true)
+		err := updateOne(slug, true, f)
 		switch {
 		case errors.Is(err, installer.ErrNoAutomatedUpdate):
 			skipped++
@@ -223,7 +236,7 @@ func updateBulk() error {
 //
 // suppressFinal — when true (bulk mode), skip the per-theme final
 // "Up to date." line so the bulk caller can render its own summary.
-func updateOne(slug string, suppressFinal bool) error {
+func updateOne(slug string, suppressFinal bool, f updateFlags) error {
 	t, err := manifest.LoadOne(slug)
 	if err != nil {
 		return fmt.Errorf("no manifest for %q", slug)
@@ -243,7 +256,7 @@ func updateOne(slug string, suppressFinal bool) error {
 
 	ui.Header("Updating", t.Theme.Name)
 
-	opts := installer.Options{DryRun: updateDryRun}
+	opts := installer.Options{DryRun: f.DryRun}
 	done := ui.StepStart(updateLabel(t))
 	if err := installer.Update(t, opts); err != nil {
 		if errors.Is(err, installer.ErrNoAutomatedUpdate) {
@@ -260,7 +273,7 @@ func updateOne(slug string, suppressFinal bool) error {
 	// reflect the refreshed asset.
 	if t.Install.Post != nil {
 		done := ui.StepStart(t.Install.Post.Description)
-		if !updateDryRun {
+		if !f.DryRun {
 			if err := shell.RunInherit(context.Background(), t.Install.Post.Command); err != nil {
 				done(err)
 				return fmt.Errorf("post-hook: %w", err)
@@ -271,7 +284,7 @@ func updateOne(slug string, suppressFinal bool) error {
 
 	// Bump the install timestamp so `slatewave status` reflects the
 	// last refresh.
-	if !updateDryRun {
+	if !f.DryRun {
 		if err := state.Update(func(s *state.Store) error {
 			rec.InstalledAt = time.Now().UTC()
 			s.Put(rec)
@@ -284,7 +297,7 @@ func updateOne(slug string, suppressFinal bool) error {
 	if suppressFinal {
 		return nil
 	}
-	if updateDryRun {
+	if f.DryRun {
 		ui.Done("Dry run — no files written.")
 	} else {
 		ui.Done("Up to date.")
