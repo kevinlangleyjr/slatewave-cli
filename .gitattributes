@@ -1,0 +1,10 @@
+# Pin LF line endings for golden test fixtures so Windows runners
+# (which clone with autocrlf=true by default) don't convert the file
+# under us. The Banner() function emits LF; comparing against a CRLF
+# golden file on disk would diff non-trivially every Windows CI run.
+*.golden text eol=lf
+
+# Likewise for embedded manifests — the file content is checked in
+# byte-exact, and the registry parses with no line-ending tolerance.
+internal/manifest/embedded/*.toml text eol=lf
+schemas/*.json text eol=lf

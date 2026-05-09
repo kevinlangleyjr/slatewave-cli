@@ -10,12 +10,16 @@ import (
 
 // Fixture manifest bodies used across the diagnose / reconcile tests.
 // Detect/verify commands use `true` and `false` so tests don't depend
-// on real tools being installed on the runner.
+// on real tools being installed on the runner. supported_os covers
+// every OS the CI matrix exercises so SupportsCurrentOS doesn't
+// reject these fixtures on Windows runs (the embedded `true` / `false`
+// detect commands are special-cased by cmd /C and resolve correctly).
 const (
 	manifestHealthy = `[theme]
 slug = "okayish"
 name = "OK"
 category = "editor"
+supported_os = ["darwin", "linux", "windows"]
 detect_command = "true"
 
 [install]
@@ -32,6 +36,7 @@ command = "true"
 slug = "drifted"
 name = "Drifted"
 category = "editor"
+supported_os = ["darwin", "linux", "windows"]
 detect_command = "true"
 
 [install]
@@ -48,7 +53,29 @@ command = "false"
 slug = "gone"
 name = "Gone"
 category = "editor"
+supported_os = ["darwin", "linux", "windows"]
 detect_command = "false"
+
+[install]
+type = "manual"
+
+[activate]
+type = "none"
+
+[verify]
+command = "true"
+`
+
+	// Same shape as manifestHealthy but DOESN'T declare windows in
+	// supported_os — used by tests that exercise the
+	// "OS gate blocks install" path. Unsetting supported_os entirely
+	// (the default) resolves to ["darwin", "linux"], which is exactly
+	// the state we want.
+	manifestUnixOnlyHealthy = `[theme]
+slug = "okayish"
+name = "OK"
+category = "editor"
+detect_command = "true"
 
 [install]
 type = "manual"
@@ -359,7 +386,10 @@ func TestInstallOne_BlocksUnsupportedOS(t *testing.T) {
 	defer manifest.SetGOOSForTest("windows")()
 
 	env := setupCmdEnv(t)
-	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
+	// Use the unix-only variant — manifestHealthy now declares all OSes
+	// for the rest of the suite, so it'd pass the OS gate. We need a
+	// fixture that explicitly defaults to ["darwin", "linux"].
+	env.useManifestDir(t, map[string]string{"okayish": manifestUnixOnlyHealthy})
 
 	err := installOne("okayish", false, installFlags{}, env.out)
 	if err == nil {
