@@ -37,6 +37,25 @@ func SetHTTPTimeoutForTest(d time.Duration) func() {
 	return func() { httpClient.Timeout = prev }
 }
 
+// detectTimeout caps each Detect call so a misbehaving detect_command
+// (`command -v <tool>` against a hung mount, an infinite-loop shell
+// alias, etc.) can't freeze `slatewave install` or `slatewave doctor`.
+// Five seconds is generous — every detect command in the embedded
+// manifest set runs in single-digit milliseconds.
+//
+// The TUI's parallel detect path (internal/tui/detect.go) has its own
+// 3s timeout per row. They don't interact: that one is for the
+// init/browse discovery sweep, this one for explicit single-theme
+// operations.
+var detectTimeout = 5 * time.Second
+
+// SetDetectTimeoutForTest swaps detectTimeout and returns a restorer.
+func SetDetectTimeoutForTest(d time.Duration) func() {
+	prev := detectTimeout
+	detectTimeout = d
+	return func() { detectTimeout = prev }
+}
+
 // Options controls install behavior at the call site.
 type Options struct {
 	DryRun bool
@@ -73,12 +92,19 @@ func Install(t manifest.Theme, opts Options) (state.Record, error) {
 
 // Detect runs the manifest's detect_command; non-zero exit → tool not
 // installed → CLI errors out (does NOT auto-install per design rule).
+//
+// Bounded by detectTimeout so a hung command can't freeze install /
+// doctor flows. A timeout surfaces as a normal "not detected" error
+// since from the user's perspective the outcome is the same: the CLI
+// can't confirm the tool is there.
 func Detect(t manifest.Theme) error {
 	cmd := manifest.DetectCommandFor(t)
 	if cmd == "" {
 		return nil // no detect declared → assume present
 	}
-	out, err := shell.Run(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), detectTimeout)
+	defer cancel()
+	out, err := shell.Run(ctx, cmd)
 	if err != nil {
 		return fmt.Errorf("%s not detected (run: %s)\n%s", t.Theme.Name, cmd, strings.TrimSpace(string(out)))
 	}

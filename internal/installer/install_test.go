@@ -569,6 +569,30 @@ func TestDetect_NonZeroExitErrors(t *testing.T) {
 	}
 }
 
+// A hung detect_command must not freeze Detect — the surrounding install
+// or doctor pipeline relies on Detect returning quickly. The test shrinks
+// the timeout to 200ms and points at a sleep that would otherwise run for
+// 60s, then asserts Detect returns inside ~1s with a "not detected" error
+// (a timed-out detect is observationally identical to a failing detect).
+func TestDetect_HangingCommandHitsTimeout(t *testing.T) {
+	defer SetDetectTimeoutForTest(200 * time.Millisecond)()
+
+	th := manifest.Theme{Theme: manifest.Meta{Slug: "x", Name: "X", DetectCommand: "sleep 60"}}
+
+	start := time.Now()
+	err := Detect(th)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("hanging detect_command: want error, got nil")
+	}
+	if elapsed > 2*time.Second {
+		t.Errorf("hanging detect_command: returned after %v, want ~200ms", elapsed)
+	}
+	if !strings.Contains(err.Error(), "X not detected") {
+		t.Errorf("Detect error didn't mention theme name: %v", err)
+	}
+}
+
 // ----- expandPath round-trip with $HOME swap -----
 
 func TestExpandPath_TildeAndHomeMatchAfterSetenv(t *testing.T) {
