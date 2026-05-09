@@ -270,7 +270,20 @@ func TestActivate_IniKey_DryRunMakesNoChanges(t *testing.T) {
 
 // ----- shell-rc activator -----
 
+// skipUnixShellRC skips tests that exercise the unix shell-rc fixtures
+// (bare `line` / `files` without the `_windows` companions). On Windows,
+// shellRCConfigFor errors out demanding files_windows + line_windows;
+// the windows shape is covered by TestActivate_ShellRC_WindowsUsesWindowsFields
+// and TestActivate_ShellRC_WindowsErrorsWhenWindowsFieldsMissing below.
+func skipUnixShellRC(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("unix shell-rc shape — windows path covered by TestActivate_ShellRC_WindowsUsesWindowsFields")
+	}
+}
+
 func TestActivate_ShellRC_AppendsAndIsIdempotent(t *testing.T) {
+	skipUnixShellRC(t)
 	rc := filepath.Join(t.TempDir(), ".zshrc")
 	if err := os.WriteFile(rc, []byte("# existing zshrc content\n"), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -317,6 +330,7 @@ func TestActivate_ShellRC_AppendsAndIsIdempotent(t *testing.T) {
 }
 
 func TestActivate_ShellRC_CreatesFileWhenAbsent(t *testing.T) {
+	skipUnixShellRC(t)
 	rc := filepath.Join(t.TempDir(), ".zshrc")
 	// Note: rc does NOT exist on disk yet.
 	th := manifest.Theme{
@@ -379,6 +393,7 @@ func wezTheme(target string) manifest.Theme {
 // and the path is recorded as a CreatedPath (so uninstall removes the
 // file we created, rather than splicing one line out of it).
 func TestActivate_ShellRC_ScaffoldWritesFullFileWhenMissing(t *testing.T) {
+	skipUnixShellRC(t)
 	dir := t.TempDir()
 	target := filepath.Join(dir, "wezterm", "wezterm.lua")
 
@@ -405,6 +420,7 @@ func TestActivate_ShellRC_ScaffoldWritesFullFileWhenMissing(t *testing.T) {
 // Empty file (touched but never edited) is the same case as missing —
 // we still own the contents and write the scaffold.
 func TestActivate_ShellRC_ScaffoldWritesWhenFileWhitespaceOnly(t *testing.T) {
+	skipUnixShellRC(t)
 	dir := t.TempDir()
 	target := filepath.Join(dir, "wezterm.lua")
 	if err := os.WriteFile(target, []byte("   \n\t\n"), 0o644); err != nil {
@@ -425,6 +441,7 @@ func TestActivate_ShellRC_ScaffoldWritesWhenFileWhitespaceOnly(t *testing.T) {
 // and the activation line must land ABOVE `return config` (Lua halts at
 // return; lines below it never run). The append fallback is wrong here.
 func TestActivate_ShellRC_InsertBeforeSplicesAboveAnchor(t *testing.T) {
+	skipUnixShellRC(t)
 	dir := t.TempDir()
 	target := filepath.Join(dir, "wezterm.lua")
 	original := "local wezterm = require 'wezterm'\nlocal config = wezterm.config_builder()\n\nreturn config\n"
@@ -478,6 +495,7 @@ func TestActivate_ShellRC_InsertBeforeSplicesAboveAnchor(t *testing.T) {
 // append-with-marker behavior so manifests can opt into "splice if you
 // can, append otherwise" without the activator failing closed.
 func TestActivate_ShellRC_InsertBeforeFallsBackToAppend(t *testing.T) {
+	skipUnixShellRC(t)
 	dir := t.TempDir()
 	target := filepath.Join(dir, "wezterm.lua")
 	// Custom config without `return config` — the user wrote their own
@@ -580,6 +598,7 @@ func TestSpliceBefore_LuaCommentMarker(t *testing.T) {
 // Scaffold + empty file with DryRun: must not touch the filesystem and
 // must not record a CreatedPath.
 func TestActivate_ShellRC_ScaffoldRespectsDryRun(t *testing.T) {
+	skipUnixShellRC(t)
 	dir := t.TempDir()
 	target := filepath.Join(dir, "wezterm.lua")
 
@@ -599,6 +618,7 @@ func TestActivate_ShellRC_ScaffoldRespectsDryRun(t *testing.T) {
 // must be a no-op — the idempotency scanner sees the line and bails before
 // the scaffold branch even runs.
 func TestActivate_ShellRC_ScaffoldIsIdempotent(t *testing.T) {
+	skipUnixShellRC(t)
 	dir := t.TempDir()
 	target := filepath.Join(dir, "wezterm.lua")
 
