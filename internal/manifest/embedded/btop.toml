@@ -8,6 +8,7 @@ detect_command = "btop --version"
 type = "curl"
 url = "https://raw.githubusercontent.com/kevinlangleyjr/btop-slatewave/main/slatewave.theme"
 dest = "$HOME/.config/btop/themes/slatewave.theme"
+done_message = "Launch `btop` to see Slatewave applied."
 
 [activate]
 type = "ini-key"
@@ -18,3 +19,6 @@ value = "slatewave"
 [verify]
 command = "grep '^color_theme' ~/.config/btop/btop.conf"
 expect = "slatewave"
+
+[uninstall]
+done_message = "Reverted. Quit and relaunch `btop` if it's open."

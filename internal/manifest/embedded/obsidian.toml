@@ -31,3 +31,6 @@ type = "none"
 
 [verify]
 command = "test -d $HOME/.local/share/obsidian-slatewave"
+
+[uninstall]
+done_message = "Reverted. Restart Obsidian if it's open — the theme is loaded once at launch."

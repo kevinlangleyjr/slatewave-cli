@@ -56,3 +56,6 @@ return config
 
 [verify]
 command = "test -f ~/.config/wezterm/slatewave-full.lua && test -f ~/.config/wezterm/slatewave.lua"
+
+[uninstall]
+done_message = "Reverted. Quit and relaunch WezTerm to see your original colors — running terminals keep the loaded theme in memory."

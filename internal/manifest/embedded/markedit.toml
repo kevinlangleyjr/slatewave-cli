@@ -20,3 +20,6 @@ type = "none"
 
 [verify]
 command = "test -f \"$HOME/Library/Containers/app.cyan.markedit/Data/Documents/scripts/markedit-theme-slatewave.js\""
+
+[uninstall]
+done_message = "Reverted. Restart MarkEdit if it's open — the theme is loaded once at launch."

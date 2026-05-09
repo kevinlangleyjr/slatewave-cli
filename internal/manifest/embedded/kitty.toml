@@ -49,3 +49,6 @@ include slatewave-full.conf
 
 [verify]
 command = "test -f ~/.config/kitty/slatewave-full.conf && test -f ~/.config/kitty/slatewave.conf"
+
+[uninstall]
+done_message = "Reverted. Quit and relaunch kitty to see your original colors — running terminals keep the loaded theme in memory."

@@ -8,6 +8,7 @@ detect_command = "delta --version"
 type = "clone"
 repo = "https://github.com/kevinlangleyjr/delta-slatewave.git"
 clone_dest = "$HOME/.config/delta-slatewave"
+done_message = "Run a `git diff` in any repo to see Slatewave applied."
 
 [activate]
 type = "gitconfig-include"

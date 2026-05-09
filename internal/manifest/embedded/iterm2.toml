@@ -22,3 +22,6 @@ type = "none"
 
 [verify]
 command = "test -f ~/Downloads/slatewave.itermcolors"
+
+[uninstall]
+done_message = "Reverted. Quit and relaunch iTerm2 to see your original colors — running terminals keep the loaded theme in memory."
