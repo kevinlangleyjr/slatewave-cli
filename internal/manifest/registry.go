@@ -148,6 +148,9 @@ func loadFromDir(fsys fs.FS, root string) ([]Theme, error) {
 		if t.Theme.Slug == "" {
 			return fmt.Errorf("manifest %s has empty theme.slug", filepath.Base(path))
 		}
+		if len(t.Install.Variants) > 0 && t.Theme.VersionRegex == "" {
+			return fmt.Errorf("manifest %s declares install.variants but no theme.version_regex — variants need a way to extract the installed tool's version", filepath.Base(path))
+		}
 		out = append(out, t)
 		return nil
 	})

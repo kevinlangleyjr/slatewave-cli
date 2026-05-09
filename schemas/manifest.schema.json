@@ -6,6 +6,28 @@
   "type": "object",
   "required": ["theme", "install"],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "install": {
+            "properties": {
+              "variants": { "type": "array", "minItems": 1 }
+            },
+            "required": ["variants"]
+          }
+        },
+        "required": ["install"]
+      },
+      "then": {
+        "properties": {
+          "theme": {
+            "required": ["version_regex"]
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "theme": {
       "type": "object",
@@ -41,6 +63,10 @@
           "type": "array",
           "items": { "type": "string", "enum": ["darwin", "linux", "windows"] },
           "description": "OS values from runtime.GOOS this manifest claims to work on. Empty/unset defaults to [\"darwin\", \"linux\"] — pre-Windows behavior. Cross-platform manifests must list \"windows\" explicitly so that an unaudited manifest can't accidentally be offered to (and fail mid-install on) Windows users."
+        },
+        "version_regex": {
+          "type": "string",
+          "description": "Regex applied to detect_command stdout to extract the installed tool's version. Capture group 1 must hold an X.Y.Z version. Required when install.variants is non-empty; otherwise unused. Lets one manifest dispatch its install URL based on the installed tool's version (e.g. lsd 1.0.x silently ignores hex colors and needs an ANSI-256 variant)."
         }
       }
     },
@@ -128,6 +154,42 @@
         "done_message": {
           "type": "string",
           "description": "Success line printed after a non-bulk install completes (\"bat picks up the new theme on its next invocation.\", \"Restart your shell or `source` your rc file.\"). Omit to use the generic \"Slatewave is installed.\" default."
+        },
+        "variants": {
+          "type": "array",
+          "description": "Version-conditional install overrides. When a variant's when_version matches the version captured via theme.version_regex, its url/dest/files override the parent fields (first-match-wins). Lets one manifest target multiple incompatible tool versions — e.g. lsd 1.0.x needs an ANSI-256 colors file because it silently ignores hex; 1.1+ wants the hex file. Requires theme.version_regex to be set.",
+          "items": {
+            "type": "object",
+            "required": ["when_version"],
+            "additionalProperties": false,
+            "properties": {
+              "when_version": {
+                "type": "string",
+                "description": "Constraint expression: \"<X.Y.Z\", \"<=X.Y.Z\", \">X.Y.Z\", \">=X.Y.Z\", \"=X.Y.Z\", or bare \"X.Y.Z\" (treated as exact match). Anything else is rejected at install time."
+              },
+              "url": {
+                "type": "string",
+                "description": "Override for install.url when this variant matches. Omit to inherit from the parent."
+              },
+              "dest": {
+                "type": "string",
+                "description": "Override for install.dest when this variant matches. Omit to inherit."
+              },
+              "files": {
+                "type": "array",
+                "description": "Override for install.files when this variant matches. When set, the parent's url/dest are cleared so dispatch sees a clean multi-file shape.",
+                "items": {
+                  "type": "object",
+                  "required": ["url", "dest"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "url": { "type": "string" },
+                    "dest": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
