@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -72,6 +73,7 @@ for missing-tool, drop for orphan). Without --fix, copy a suggested remedy from
 the report or run ` + "`slatewave list`" + ` to silently reconcile stale + orphan records.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		out := ui.Writer(cmd)
 		f := parseDoctorFlags(cmd)
 		s, err := state.Load()
 		if err != nil {
@@ -79,21 +81,21 @@ the report or run ` + "`slatewave list`" + ` to silently reconcile stale + orpha
 		}
 
 		if f.JSON {
-			return renderDoctorJSON(s)
+			return renderDoctorJSON(s, out)
 		}
 
 		if len(s.Records) == 0 {
-			ui.MutedLn("Nothing installed yet — `slatewave install <theme>` to get started.")
+			ui.MutedLn(out, "Nothing installed yet — `slatewave install <theme>` to get started.")
 			return nil
 		}
 
 		rows := diagnose(s)
-		fmt.Fprintln(ui.W, ui.Title.Render("slatewave doctor"))
-		fmt.Fprintln(ui.W)
+		fmt.Fprintln(out, ui.Title.Render("slatewave doctor"))
+		fmt.Fprintln(out)
 
 		var healthy, stale, missing, orphan int
 		for _, r := range rows {
-			fmt.Fprintln(ui.W, renderDoctorRow(r))
+			fmt.Fprintln(out, renderDoctorRow(r))
 			switch r.status {
 			case statusHealthy:
 				healthy++
@@ -106,12 +108,12 @@ the report or run ` + "`slatewave list`" + ` to silently reconcile stale + orpha
 			}
 		}
 
-		fmt.Fprintln(ui.W)
-		fmt.Fprintln(ui.W, doctorSummary(healthy, stale, missing, orphan))
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, doctorSummary(healthy, stale, missing, orphan))
 
 		if f.Fix {
-			fmt.Fprintln(ui.W)
-			return runDoctorFix(rows, f)
+			fmt.Fprintln(out)
+			return runDoctorFix(rows, f, out)
 		}
 		return nil
 	},
@@ -129,11 +131,11 @@ func init() {
 // state still produces a well-formed object (themes: [], summary
 // all-zero) so consumers can tell "no records" apart from a parse
 // failure.
-func renderDoctorJSON(s *state.Store) error {
-	out := jsonout.DoctorOutput{Themes: make([]jsonout.DoctorRow, 0)}
+func renderDoctorJSON(s *state.Store, out io.Writer) error {
+	doc := jsonout.DoctorOutput{Themes: make([]jsonout.DoctorRow, 0)}
 	if len(s.Records) > 0 {
 		for _, r := range diagnose(s) {
-			out.Themes = append(out.Themes, jsonout.DoctorRow{
+			doc.Themes = append(doc.Themes, jsonout.DoctorRow{
 				Slug:   r.slug,
 				Name:   r.name,
 				Status: doctorStatusString(r.status),
@@ -142,19 +144,19 @@ func renderDoctorJSON(s *state.Store) error {
 			})
 			switch r.status {
 			case statusHealthy:
-				out.Summary.Healthy++
+				doc.Summary.Healthy++
 			case statusStale:
-				out.Summary.Stale++
+				doc.Summary.Stale++
 			case statusMissingTool:
-				out.Summary.MissingTool++
+				doc.Summary.MissingTool++
 			case statusOrphan:
-				out.Summary.Orphan++
+				doc.Summary.Orphan++
 			}
 		}
 	}
-	enc := json.NewEncoder(ui.W)
+	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	return enc.Encode(doc)
 }
 
 // doctorStatusString maps the internal iota enum to the wire-format
@@ -175,27 +177,27 @@ func doctorStatusString(s doctorStatus) string {
 }
 
 // runDoctorFix maps fixable doctor rows to tui.Fix entries, hands them to the picker so the user can confirm or deselect, then runs the dashboard. Healthy rows are filtered out before the picker — there's nothing to fix.
-func runDoctorFix(rows []doctorRow, f doctorFlags) error {
+func runDoctorFix(rows []doctorRow, f doctorFlags, out io.Writer) error {
 	fixes := buildFixes(rows)
 	if len(fixes) == 0 {
-		ui.Done("Nothing to fix.")
+		ui.Done(out, "Nothing to fix.")
 		return nil
 	}
 
 	selected, err := tui.PickFixes(fixes)
 	if err != nil {
 		if errors.Is(err, tui.ErrAborted) {
-			ui.MutedLn("Aborted. Nothing changed.")
+			ui.MutedLn(out, "Aborted. Nothing changed.")
 			return nil
 		}
 		return err
 	}
 	if len(selected) == 0 {
-		ui.MutedLn("No fixes selected. Nothing changed.")
+		ui.MutedLn(out, "No fixes selected. Nothing changed.")
 		return nil
 	}
 
-	fmt.Fprintln(ui.W)
+	fmt.Fprintln(out)
 	return tui.RunFix(selected, tui.FixOptions{DryRun: f.DryRun})
 }
 

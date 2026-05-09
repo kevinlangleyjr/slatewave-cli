@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -44,6 +45,7 @@ command. If a theme was uninstalled outside the CLI (e.g. ` + "`code --uninstall
 from VSCode's UI) the stale state record is dropped and the row renders
 as not-installed. To audit drift without mutating state, use ` + "`slatewave doctor`" + `.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		out := ui.Writer(cmd)
 		f := parseListFlags(cmd)
 		// LoadSupported hides themes that don't claim the current OS.
 		// On Windows the list shrinks to the four manifests that opt
@@ -85,7 +87,7 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 		}
 
 		if f.JSON {
-			return renderListJSON(themes, s, order, groups, f)
+			return renderListJSON(themes, s, order, groups, f, out)
 		}
 
 		var rows []string
@@ -119,9 +121,9 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 		}
 		footer := summary(footerThemes, s)
 
-		fmt.Fprintln(ui.W, ui.Box.Render(header+"\n\n"+body+"\n\n"+footer))
+		fmt.Fprintln(out, ui.Box.Render(header+"\n\n"+body+"\n\n"+footer))
 		if reconciled > 0 {
-			ui.MutedLn(fmt.Sprintf("Dropped %s from state — verify failed (theme uninstalled outside the CLI).",
+			ui.MutedLn(out, fmt.Sprintf("Dropped %s from state — verify failed (theme uninstalled outside the CLI).",
 				pluralize(reconciled, "stale record", "stale records")))
 		}
 		return nil
@@ -150,8 +152,8 @@ func init() {
 // JSON output preserves the same category-based stable ordering as the
 // rendered version (callers shouldn't see a different theme order
 // between --json and not).
-func renderListJSON(themes []manifest.Theme, s *state.Store, order []string, groups map[string][]manifest.Theme, f listFlags) error {
-	out := jsonout.ListOutput{Themes: make([]jsonout.ThemeRow, 0)}
+func renderListJSON(themes []manifest.Theme, s *state.Store, order []string, groups map[string][]manifest.Theme, f listFlags, out io.Writer) error {
+	doc := jsonout.ListOutput{Themes: make([]jsonout.ThemeRow, 0)}
 	for _, cat := range order {
 		for _, t := range groups[cat] {
 			row := jsonout.ThemeRow{
@@ -166,7 +168,7 @@ func renderListJSON(themes []manifest.Theme, s *state.Store, order []string, gro
 				row.InstallType = rec.InstallType
 				row.ActivateType = rec.ActivateType
 			}
-			out.Themes = append(out.Themes, row)
+			doc.Themes = append(doc.Themes, row)
 		}
 	}
 	// Footer counts mirror the human path: filtered theme set if a
@@ -180,16 +182,16 @@ func renderListJSON(themes []manifest.Theme, s *state.Store, order []string, gro
 			}
 		}
 	}
-	out.Counts.Total = len(footerThemes)
+	doc.Counts.Total = len(footerThemes)
 	for _, t := range footerThemes {
 		if _, ok := s.Get(t.Theme.Slug); ok {
-			out.Counts.Installed++
+			doc.Counts.Installed++
 		}
 	}
 
-	enc := json.NewEncoder(ui.W)
+	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	return enc.Encode(doc)
 }
 
 func renderRow(t manifest.Theme, s *state.Store) string {

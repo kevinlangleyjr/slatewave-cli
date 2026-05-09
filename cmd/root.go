@@ -41,9 +41,13 @@ var rootCmd = &cobra.Command{
 	Version:       Version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	PersistentPreRun: func(_ *cobra.Command, _ []string) {
+	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 		verbose.SetEnabled(verboseFlag)
 		versionCheckCh = version.Check(Version)
+		// Inject os.Stdout as the per-command writer so subcommands
+		// reading via ui.Writer(cmd) get the real terminal. Tests
+		// override this by calling SetContext before invoking RunE.
+		cmd.SetContext(ui.WithWriter(cmd.Context(), os.Stdout))
 	},
 	PersistentPostRun: func(_ *cobra.Command, _ []string) {
 		emitUpgradeNag()

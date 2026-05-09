@@ -287,7 +287,7 @@ func TestPrintPostInstallInstructions_PrintsHeaderAndLines(t *testing.T) {
 			},
 		},
 	}
-	printPostInstallInstructions(themes)
+	printPostInstallInstructions(themes, env.out)
 	out := env.out.String()
 	if !strings.Contains(out, "Next steps for Slatewave for Obsidian") {
 		t.Errorf("missing per-theme header: %q", out)
@@ -304,7 +304,7 @@ func TestPrintPostInstallInstructions_NoOpWhenNoInstructions(t *testing.T) {
 	themes := []manifest.Theme{
 		{Theme: manifest.Meta{Slug: "bat", Name: "Slatewave for bat"}},
 	}
-	printPostInstallInstructions(themes)
+	printPostInstallInstructions(themes, env.out)
 	if env.out.Len() != 0 {
 		t.Errorf("themes with no instructions should produce no output, got %q", env.out.String())
 	}
@@ -322,7 +322,7 @@ func TestPrintPostInstallInstructions_SkipsThemesWithoutInstructionsInMixedSet(t
 		},
 		{Theme: manifest.Meta{Slug: "btop", Name: "Slatewave for btop"}},
 	}
-	printPostInstallInstructions(themes)
+	printPostInstallInstructions(themes, env.out)
 	out := env.out.String()
 	if strings.Contains(out, "Slatewave for bat") || strings.Contains(out, "Slatewave for btop") {
 		t.Errorf("themes without instructions shouldn't appear in output: %q", out)

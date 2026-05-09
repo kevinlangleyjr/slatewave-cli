@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -46,8 +47,8 @@ func Banner() string {
 }
 
 // PrintBanner writes the banner followed by a blank-line separator
-// to W. Command entry points call this for the startup brand moment.
-func PrintBanner() {
-	fmt.Fprintln(W, Banner())
-	fmt.Fprintln(W)
+// to w. Command entry points call this for the startup brand moment.
+func PrintBanner(w io.Writer) {
+	fmt.Fprintln(w, Banner())
+	fmt.Fprintln(w)
 }

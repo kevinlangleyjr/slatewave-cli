@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -52,6 +53,7 @@ at the end.`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validInstallArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		out := ui.Writer(cmd)
 		f := parseInstallFlags(cmd)
 		if f.All && f.Category != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
@@ -83,18 +85,18 @@ at the end.`,
 		//   single (no bulk flag)  → streaming, single-theme pipeline.
 		switch {
 		case f.Interactive:
-			return installInteractiveTUI(slugs, f)
+			return installInteractiveTUI(slugs, f, out)
 		case f.NoInteractive:
 			if !bulk {
-				return installOne(slugs[0], false, f)
+				return installOne(slugs[0], false, f, out)
 			}
-			return installBulk(slugs, f)
+			return installBulk(slugs, f, out)
 		case !bulk:
-			return installOne(slugs[0], false, f)
+			return installOne(slugs[0], false, f, out)
 		case isTerminal():
-			return installInteractiveTUI(slugs, f)
+			return installInteractiveTUI(slugs, f, out)
 		default:
-			return installBulk(slugs, f)
+			return installBulk(slugs, f, out)
 		}
 	},
 }
@@ -146,7 +148,7 @@ func noManifestError(slug string) error {
 }
 
 // installInteractiveTUI runs the install pipeline through the bubbletea dashboard. It loads each slug's manifest, drops themes already recorded in state (matching installBulk's skip behavior), and hands the rest to tui.RunInstall — which renders live progress and surfaces failures in the summary line rather than per-theme errors.
-func installInteractiveTUI(slugs []string, f installFlags) error {
+func installInteractiveTUI(slugs []string, f installFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -170,14 +172,14 @@ func installInteractiveTUI(slugs []string, f installFlags) error {
 	}
 
 	for _, slug := range skipped {
-		ui.MutedLn(fmt.Sprintf("Skipping %s — already installed.", slug))
+		ui.MutedLn(out, fmt.Sprintf("Skipping %s — already installed.", slug))
 	}
 	if len(skipped) > 0 {
-		fmt.Fprintln(ui.W)
+		fmt.Fprintln(out)
 	}
 
 	if len(themes) == 0 {
-		ui.Done("Nothing to install — every requested theme is already installed.")
+		ui.Done(out, "Nothing to install — every requested theme is already installed.")
 		return nil
 	}
 
@@ -189,33 +191,33 @@ func installInteractiveTUI(slugs []string, f installFlags) error {
 	// We print even when runErr != nil — the dashboard already shows which
 	// themes failed; instructions for failed ones are ignorable noise but
 	// instructions for the successes still need to land.
-	printPostInstallInstructions(themes)
+	printPostInstallInstructions(themes, out)
 	return runErr
 }
 
 // printPostInstallInstructions emits each theme's install.instructions block under a "Next steps for <name>:" header. No-op for themes that ship no instructions, so the function is safe to call against a mixed list.
-func printPostInstallInstructions(themes []manifest.Theme) {
+func printPostInstallInstructions(themes []manifest.Theme, out io.Writer) {
 	any := false
 	for _, t := range themes {
 		if len(t.Install.Instructions) == 0 {
 			continue
 		}
 		if !any {
-			fmt.Fprintln(ui.W)
+			fmt.Fprintln(out)
 			any = true
 		}
-		ui.MutedLn(fmt.Sprintf("Next steps for %s:", t.Theme.Name))
+		ui.MutedLn(out, fmt.Sprintf("Next steps for %s:", t.Theme.Name))
 		for _, line := range t.Install.Instructions {
-			ui.MutedLn("  " + line)
+			ui.MutedLn(out, "  "+line)
 		}
-		fmt.Fprintln(ui.W)
+		fmt.Fprintln(out)
 	}
 }
 
 // installBulk runs installOne for each slug, skipping themes already
 // recorded in state and continuing past individual failures so one
 // broken theme doesn't bail the rest of the run.
-func installBulk(slugs []string, f installFlags) error {
+func installBulk(slugs []string, f installFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -224,29 +226,29 @@ func installBulk(slugs []string, f installFlags) error {
 	var installed, skipped, failed int
 	for i, slug := range slugs {
 		if _, ok := s.Get(slug); ok {
-			ui.MutedLn(fmt.Sprintf("Skipping %s — already installed.", slug))
+			ui.MutedLn(out, fmt.Sprintf("Skipping %s — already installed.", slug))
 			skipped++
 			continue
 		}
 		if i > 0 {
-			fmt.Fprintln(ui.W)
+			fmt.Fprintln(out)
 		}
-		if err := installOne(slug, true, f); err != nil {
-			ui.Errorf("%s: %v", slug, err)
+		if err := installOne(slug, true, f, out); err != nil {
+			ui.Errorf(out, "%s: %v", slug, err)
 			failed++
 			continue
 		}
 		installed++
 	}
 
-	fmt.Fprintln(ui.W)
+	fmt.Fprintln(out)
 	switch {
 	case failed > 0:
-		ui.Done(fmt.Sprintf("%d installed, %d skipped, %d failed.", installed, skipped, failed))
+		ui.Done(out, fmt.Sprintf("%d installed, %d skipped, %d failed.", installed, skipped, failed))
 	case installed == 0:
-		ui.Done(fmt.Sprintf("Nothing to install — %d already installed.", skipped))
+		ui.Done(out, fmt.Sprintf("Nothing to install — %d already installed.", skipped))
 	default:
-		ui.Done(fmt.Sprintf("%d installed, %d skipped.", installed, skipped))
+		ui.Done(out, fmt.Sprintf("%d installed, %d skipped.", installed, skipped))
 	}
 	return nil
 }
@@ -258,7 +260,7 @@ func installBulk(slugs []string, f installFlags) error {
 //
 // suppressFinal — when true (bulk mode), skip the per-theme final
 // "Done." line so the bulk caller can render its own summary.
-func installOne(slug string, suppressFinal bool, f installFlags) error {
+func installOne(slug string, suppressFinal bool, f installFlags, out io.Writer) error {
 	t, err := manifest.LoadOne(slug)
 	if err != nil {
 		return noManifestError(slug)
@@ -267,12 +269,12 @@ func installOne(slug string, suppressFinal bool, f installFlags) error {
 		return fmt.Errorf("%s is not supported on %s", t.Theme.Name, manifest.CurrentGOOS())
 	}
 
-	ui.Header("Installing", t.Theme.Name)
+	ui.Header(out, "Installing", t.Theme.Name)
 	opts := installer.Options{DryRun: f.DryRun}
 	actOpts := activator.Options{DryRun: f.DryRun}
 
 	if t.Install.Type != "marketplace" && t.Install.Type != "manual" {
-		done := ui.StepStart(fmt.Sprintf("Detecting %s", t.Theme.Slug))
+		done := ui.StepStart(out, fmt.Sprintf("Detecting %s", t.Theme.Slug))
 		if err := installer.Detect(t); err != nil {
 			done(err)
 			return err
@@ -280,7 +282,7 @@ func installOne(slug string, suppressFinal bool, f installFlags) error {
 		done(nil)
 	}
 
-	done := ui.StepStart(installLabel(t))
+	done := ui.StepStart(out, installLabel(t))
 	rec, err := installer.Install(t, opts)
 	if err != nil {
 		done(err)
@@ -289,12 +291,12 @@ func installOne(slug string, suppressFinal bool, f installFlags) error {
 	done(nil)
 
 	if t.Install.Post != nil {
-		done := ui.StepStart(t.Install.Post.Description)
+		done := ui.StepStart(out, t.Install.Post.Description)
 		done(nil)
 	}
 
 	if t.Activate.Type != "" && t.Activate.Type != "none" {
-		done := ui.StepStart(activateLabel(t))
+		done := ui.StepStart(out, activateLabel(t))
 		if err := activator.Activate(t, &rec, actOpts); err != nil {
 			done(err)
 			return err
@@ -312,9 +314,9 @@ func installOne(slug string, suppressFinal bool, f installFlags) error {
 	}
 
 	if t.Install.Type == "manual" || len(t.Install.Instructions) > 0 {
-		fmt.Fprintln(ui.W)
+		fmt.Fprintln(out)
 		for _, line := range t.Install.Instructions {
-			ui.MutedLn("  " + line)
+			ui.MutedLn(out, "  "+line)
 		}
 	}
 
@@ -322,9 +324,9 @@ func installOne(slug string, suppressFinal bool, f installFlags) error {
 		return nil
 	}
 	if f.DryRun {
-		ui.Done("Dry run — no files written.")
+		ui.Done(out, "Dry run — no files written.")
 	} else {
-		ui.Done(installDoneMessage(t))
+		ui.Done(out, installDoneMessage(t))
 	}
 	return nil
 }
