@@ -4,10 +4,13 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/verbose"
+	"github.com/kevinlangleyjr/slatewave-cli/internal/version"
 )
 
 // Version is set via -ldflags at release time.
@@ -18,6 +21,19 @@ var Version = "dev"
 // packages can call verbose.Log without re-reading flag state.
 var verboseFlag bool
 
+// versionCheckCh holds the result channel from the async version check
+// kicked off in PersistentPreRun. PersistentPostRun waits on it for
+// up to nagWait before emitting the upgrade nag — slow API responses
+// don't block the user's command, they just miss the nag this run
+// (the cache will catch them next time).
+var versionCheckCh <-chan *version.Result
+
+// nagWait is the maximum time PersistentPostRun blocks waiting for
+// the version-check goroutine to return. Short enough to be invisible
+// on every command, long enough to surface a fresh-cache result
+// without round-tripping the API.
+const nagWait = 200 * time.Millisecond
+
 var rootCmd = &cobra.Command{
 	Use:           "slatewave",
 	Short:         "One palette across every tool you live in.",
@@ -27,7 +43,36 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		verbose.SetEnabled(verboseFlag)
+		versionCheckCh = version.Check(Version)
 	},
+	PersistentPostRun: func(_ *cobra.Command, _ []string) {
+		emitUpgradeNag()
+	},
+}
+
+// emitUpgradeNag waits briefly for the version check goroutine to
+// finish, then prints a one-line nag to stderr if the user is on an
+// out-of-date binary. Silent on no-update / no-result / wait-expired
+// so a healthy run produces zero noise.
+func emitUpgradeNag() {
+	if versionCheckCh == nil {
+		return
+	}
+	select {
+	case res := <-versionCheckCh:
+		if res == nil {
+			return
+		}
+		fmt.Fprintln(os.Stderr,
+			ui.Muted.Render("➜ slatewave ")+
+				ui.Accent.Render(res.Latest)+
+				ui.Muted.Render(" is out (you're on "+Version+"): "+res.URL))
+	case <-time.After(nagWait):
+		// Background check didn't finish in time; the cache will be
+		// updated whenever the goroutine completes (or not — main
+		// will exit and kill it). Either way, next run sees fresh
+		// state.
+	}
 }
 
 // Execute runs the cobra root. main.go calls this.
