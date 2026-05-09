@@ -99,3 +99,58 @@ type DoctorSummary struct {
 	MissingTool int `json:"missing_tool"`
 	Orphan      int `json:"orphan"`
 }
+
+// InfoOutput is what `slatewave info <theme> --json` prints — the
+// manifest's salient fields flattened into a stable wire shape. Source
+// URL is the website's theme page, derived from the slug.
+//
+// Activate / Verify always serialize (even when the underlying manifest
+// blocks are empty); the inner `omitempty` tags on each scalar handle
+// hiding unused fields. Always-present sub-objects keep the wire shape
+// predictable for consumers that index by key.
+type InfoOutput struct {
+	Slug        string       `json:"slug"`
+	Name        string       `json:"name"`
+	Category    string       `json:"category"`
+	SupportedOS []string     `json:"supported_os"`
+	SourceURL   string       `json:"source_url"`
+	Install     InfoInstall  `json:"install"`
+	Activate    InfoActivate `json:"activate"`
+	Verify      InfoVerify   `json:"verify"`
+}
+
+// InfoInstall mirrors the manifest's [install] block. Only fields that
+// are actually populated land here — empty strings and zero arrays
+// are omitted via omitempty so consumers don't have to filter noise.
+type InfoInstall struct {
+	Type        string   `json:"type"`
+	URL         string   `json:"url,omitempty"`
+	Dest        string   `json:"dest,omitempty"`
+	Repo        string   `json:"repo,omitempty"`
+	CloneDest   string   `json:"clone_dest,omitempty"`
+	Identifier  string   `json:"identifier,omitempty"`
+	CLI         string   `json:"cli,omitempty"`
+	DoneMessage string   `json:"done_message,omitempty"`
+	Files       []string `json:"files,omitempty"`
+}
+
+// InfoActivate mirrors the manifest's [activate] block.
+type InfoActivate struct {
+	Type        string   `json:"type"`
+	File        string   `json:"file,omitempty"`
+	Key         string   `json:"key,omitempty"`
+	Value       string   `json:"value,omitempty"`
+	IncludePath string   `json:"include_path,omitempty"`
+	Files       []string `json:"files,omitempty"`
+	Line        string   `json:"line,omitempty"`
+	TOMLPath    string   `json:"toml_path,omitempty"`
+	Import      string   `json:"import,omitempty"`
+	YAMLPath    string   `json:"yaml_path,omitempty"`
+}
+
+// InfoVerify is the verify smoke command (and optional expected
+// substring). Most consumers won't care; included for completeness.
+type InfoVerify struct {
+	Command string `json:"command,omitempty"`
+	Expect  string `json:"expect,omitempty"`
+}
