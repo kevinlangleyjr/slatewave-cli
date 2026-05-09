@@ -240,13 +240,10 @@ func runInstallPipeline(p *tea.Program, th manifest.Theme, opts InstallOptions) 
 	}
 
 	if !opts.DryRun {
-		s, err := state.Load()
-		if err != nil {
-			p.Send(progressMsg{slug: slug, state: rowFailed, err: err})
-			return
-		}
-		s.Put(rec)
-		if err := s.Save(); err != nil {
+		if err := state.Update(func(s *state.Store) error {
+			s.Put(rec)
+			return nil
+		}); err != nil {
 			p.Send(progressMsg{slug: slug, state: rowFailed, err: err})
 			return
 		}

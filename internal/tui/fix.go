@@ -306,18 +306,15 @@ func runUpdateFix(p *tea.Program, f Fix, opts FixOptions) {
 		}
 	}
 	if !opts.DryRun {
-		s, err := state.Load()
-		if err != nil {
+		if err := state.Update(func(s *state.Store) error {
+			if rec, ok := s.Get(slug); ok {
+				rec.InstalledAt = time.Now().UTC()
+				s.Put(rec)
+			}
+			return nil
+		}); err != nil {
 			p.Send(fixProgressMsg{slug: slug, state: fixFailed, err: err})
 			return
-		}
-		if rec, ok := s.Get(slug); ok {
-			rec.InstalledAt = time.Now().UTC()
-			s.Put(rec)
-			if err := s.Save(); err != nil {
-				p.Send(fixProgressMsg{slug: slug, state: fixFailed, err: err})
-				return
-			}
 		}
 	}
 	p.Send(fixProgressMsg{slug: slug, state: fixDone})
@@ -343,8 +340,10 @@ func runUninstallFix(p *tea.Program, f Fix, opts FixOptions) {
 		return
 	}
 	if !opts.DryRun {
-		s.Remove(slug)
-		if err := s.Save(); err != nil {
+		if err := state.Update(func(s *state.Store) error {
+			s.Remove(slug)
+			return nil
+		}); err != nil {
 			p.Send(fixProgressMsg{slug: slug, state: fixFailed, err: err})
 			return
 		}
@@ -360,13 +359,10 @@ func runDropOrphanFix(p *tea.Program, f Fix, opts FixOptions) {
 		p.Send(fixProgressMsg{slug: slug, state: fixDone})
 		return
 	}
-	s, err := state.Load()
-	if err != nil {
-		p.Send(fixProgressMsg{slug: slug, state: fixFailed, err: err})
-		return
-	}
-	s.Remove(slug)
-	if err := s.Save(); err != nil {
+	if err := state.Update(func(s *state.Store) error {
+		s.Remove(slug)
+		return nil
+	}); err != nil {
 		p.Send(fixProgressMsg{slug: slug, state: fixFailed, err: err})
 		return
 	}

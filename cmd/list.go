@@ -37,17 +37,19 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 		if err != nil {
 			return fmt.Errorf("load manifests: %w", err)
 		}
-		s, err := state.Load()
-		if err != nil {
-			return fmt.Errorf("load state: %w", err)
-		}
-
 		// Reconcile recorded state with reality. If a theme was uninstalled
 		// outside the CLI (e.g. `code --uninstall-extension` from VSCode's
 		// own UI), the install record lingers until we notice via the
 		// theme's verify command. Drop stale records and persist.
-		if reconciled := reconcileWithReality(s); reconciled > 0 {
-			_ = s.Save() // best-effort; if save fails, render still reflects reality
+		// state.Update brackets the load/mutate/save under a file lock so
+		// a concurrent install can't clobber our reconcile.
+		_ = state.Update(func(s *state.Store) error {
+			reconcileWithReality(s)
+			return nil
+		})
+		s, err := state.Load()
+		if err != nil {
+			return fmt.Errorf("load state: %w", err)
 		}
 
 		// Group by category in a stable order.

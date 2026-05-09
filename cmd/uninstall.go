@@ -79,8 +79,10 @@ func uninstallOne(slug string) error {
 	done(nil)
 
 	if !uninstallDryRun {
-		s.Remove(slug)
-		if err := s.Save(); err != nil {
+		if err := state.Update(func(s *state.Store) error {
+			s.Remove(slug)
+			return nil
+		}); err != nil {
 			return fmt.Errorf("save state: %w", err)
 		}
 	}

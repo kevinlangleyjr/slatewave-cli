@@ -84,6 +84,73 @@ func Load() (*Store, error) {
 	return &s, nil
 }
 
+// Update brackets a Load → mutate → Save cycle with an exclusive
+// advisory lock on a sibling .lock file. Two concurrent slatewave
+// invocations (e.g., `install bat` from one terminal, `install btop`
+// from another) would otherwise both Load → mutate → Save with the
+// later writer clobbering the earlier — Update serializes them.
+//
+// fn receives the loaded store; mutate and return nil to save, or
+// return an error to abort without saving. The returned error is the
+// first of: lock acquisition, Load, fn, Save.
+//
+// Lock hold time is dominated by the in-memory mutate plus a
+// temp-file rename — typically sub-millisecond. Callers should keep
+// long-running work (network fetch, git clone, file writes) outside
+// the callback so Update doesn't block other invocations.
+func Update(fn func(*Store) error) error {
+	lock, err := acquireLock()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lock.release() }()
+
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	if err := fn(s); err != nil {
+		return err
+	}
+	return s.Save()
+}
+
+type stateLock struct {
+	f *os.File
+}
+
+func (l *stateLock) release() error {
+	err := unlockFile(l.f.Fd())
+	if cerr := l.f.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}
+
+// acquireLock opens a sibling .lock file next to the state TOML and
+// takes an exclusive flock / LockFileEx on it. The lock file is
+// stable across runs (we don't remove it after release) so the
+// kernel keeps the inode warm and lock acquisition stays cheap.
+func acquireLock() (*stateLock, error) {
+	path, err := File()
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("create state dir: %w", err)
+	}
+	lockPath := path + ".lock"
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open lock: %w", err)
+	}
+	if err := lockFile(f.Fd()); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("acquire lock: %w", err)
+	}
+	return &stateLock{f: f}, nil
+}
+
 // Save writes the state file, creating the parent directory if needed.
 func (s *Store) Save() error {
 	path, err := File()
