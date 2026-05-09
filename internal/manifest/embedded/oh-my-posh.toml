@@ -13,6 +13,7 @@ url = "https://raw.githubusercontent.com/kevinlangleyjr/slatewave-omp/main/slate
 # `~` resolves cross-OS via expandPath; `$HOME` doesn't exist under
 # cmd.exe by default, so prefer the tilde form everywhere.
 dest = "~/.config/oh-my-posh/slatewave.omp.yml"
+done_message = "Restart your shell or `source` your rc file."
 
 [activate]
 type = "shell-rc"
@@ -30,3 +31,6 @@ line_windows = "oh-my-posh init pwsh --config \"$env:USERPROFILE\\.config\\oh-my
 [verify]
 command = "test -f ~/.config/oh-my-posh/slatewave.omp.yml"
 command_windows = 'if exist "%USERPROFILE%\.config\oh-my-posh\slatewave.omp.yml" (exit 0) else (exit 1)'
+
+[uninstall]
+done_message = "Reverted. Restart your shell or `source` your rc file."

@@ -21,3 +21,6 @@ value = "Slatewave"
 [verify]
 command = "grep '^theme' ~/.config/ghostty/config"
 expect = "Slatewave"
+
+[uninstall]
+done_message = "Reverted. Quit and relaunch Ghostty to see your original colors — running terminals keep the loaded theme in memory."

@@ -111,6 +111,10 @@
               "description": "Shell command to run after install completes."
             }
           }
+        },
+        "done_message": {
+          "type": "string",
+          "description": "Success line printed after a non-bulk install completes (\"bat picks up the new theme on its next invocation.\", \"Restart your shell or `source` your rc file.\"). Omit to use the generic \"Slatewave is installed.\" default."
         }
       }
     },
@@ -210,6 +214,17 @@
         "trust_state": {
           "type": "boolean",
           "description": "When true, doctor + list reconcile skip verify.command and trust the state record. Use only when post-install storage is opaque to us (Alfred imports a .alfredappearance into its own UUID-named subdir; the transient ~/Downloads file isn't a reliable check)."
+        }
+      }
+    },
+    "uninstall": {
+      "type": "object",
+      "description": "Optional per-theme post-uninstall guidance. Today only carries done_message; more fields can join here as new uninstall-side concerns appear.",
+      "additionalProperties": false,
+      "properties": {
+        "done_message": {
+          "type": "string",
+          "description": "Success line printed after `slatewave uninstall <slug>` completes (\"Reverted. Quit and relaunch Ghostty to see your original colors...\"). Omit to use the generic \"Reverted.\" default. Set this for tools that load config once at launch (terminals, editor processes) so the user knows to relaunch."
         }
       }
     }

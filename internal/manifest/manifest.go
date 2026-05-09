@@ -8,10 +8,11 @@ package manifest
 
 // Theme is the top-level shape of a slatewave.toml file.
 type Theme struct {
-	Theme    Meta     `toml:"theme"`
-	Install  Install  `toml:"install"`
-	Activate Activate `toml:"activate"`
-	Verify   Verify   `toml:"verify"`
+	Theme     Meta      `toml:"theme"`
+	Install   Install   `toml:"install"`
+	Activate  Activate  `toml:"activate"`
+	Verify    Verify    `toml:"verify"`
+	Uninstall Uninstall `toml:"uninstall"`
 }
 
 // Meta holds the theme's identity + tool detection.
@@ -94,6 +95,13 @@ type Install struct {
 	// Optional post-install hook — a command to run after the file is
 	// in place (e.g. `bat cache --build`).
 	Post *PostHook `toml:"post"`
+
+	// DoneMessage is the success line printed after a non-bulk install
+	// completes ("bat picks up the new theme on its next invocation.",
+	// "Restart your shell or `source` your rc file."). Empty → CLI
+	// prints the generic "Slatewave is installed." default. Lets a
+	// theme give tool-specific guidance without a code change.
+	DoneMessage string `toml:"done_message"`
 }
 
 // InstallFile is one entry in a multi-file curl install. URL is the
@@ -181,6 +189,20 @@ type Activate struct {
 type YAMLPair struct {
 	Path  string `toml:"path"`
 	Value string `toml:"value"`
+}
+
+// Uninstall carries optional per-theme post-uninstall guidance. The
+// uninstall pipeline is fully manifest-driven via Install + Activate;
+// this block only exists today for DoneMessage. Add more fields here
+// as new uninstall-side concerns appear (custom warnings, conditional
+// cleanup hints, etc.).
+type Uninstall struct {
+	// DoneMessage is the success line printed after `slatewave uninstall <slug>`
+	// completes ("Reverted. Quit and relaunch Ghostty to see your
+	// original colors..."). Empty → CLI prints the generic "Reverted."
+	// default. Themes for tools that load config once at launch (terminals,
+	// editor processes) should set this to remind the user to relaunch.
+	DoneMessage string `toml:"done_message"`
 }
 
 // Verify holds an optional smoke-test command that doctor + list reconcile

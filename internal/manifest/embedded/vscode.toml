@@ -21,3 +21,6 @@ type = "none"
 # cmd /C without portability concerns.
 command = "code --list-extensions"
 expect = "slatewave"
+
+[uninstall]
+done_message = "Reverted. VSCode picks up the change immediately."

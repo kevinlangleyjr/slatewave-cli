@@ -18,6 +18,7 @@ test -d "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k" \
 type = "curl"
 url = "https://raw.githubusercontent.com/kevinlangleyjr/p10k-slatewave/main/slatewave.p10k.zsh"
 dest = "$HOME/.config/p10k/slatewave.p10k.zsh"
+done_message = "Restart your shell or `source` your rc file."
 instructions = [
   "Make sure a Nerd Font (MesloLGS NF or Hack Nerd Font Mono) is set in your terminal —",
   "  the powerline + diamond separators won't render without one.",
@@ -36,3 +37,6 @@ line = '[[ -f ~/.config/p10k/slatewave.p10k.zsh ]] && source ~/.config/p10k/slat
 
 [verify]
 command = "test -f ~/.config/p10k/slatewave.p10k.zsh"
+
+[uninstall]
+done_message = "Reverted. Restart your shell or `source` your rc file."

@@ -25,3 +25,6 @@ type = "none"
 
 [verify]
 command = "test -d $HOME/.local/share/logseq-slatewave"
+
+[uninstall]
+done_message = "Reverted. Restart Logseq if it's open — the theme is loaded once at launch."

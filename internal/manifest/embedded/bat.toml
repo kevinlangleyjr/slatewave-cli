@@ -8,6 +8,7 @@ detect_command = "bat --version"
 type = "curl"
 url = "https://raw.githubusercontent.com/kevinlangleyjr/bat-slatewave/main/Slatewave.tmTheme"
 dest = "$HOME/.config/bat/themes/Slatewave.tmTheme"
+done_message = "bat picks up the new theme on its next invocation."
 
 [install.post]
 description = "Rebuilding bat theme cache"
