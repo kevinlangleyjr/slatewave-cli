@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -29,17 +30,18 @@ Read-only — status never touches state, install, or uninstall.`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validInstalledArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		out := ui.Writer(cmd)
 		s, err := state.Load()
 		if err != nil {
 			return fmt.Errorf("load state: %w", err)
 		}
 		if flagBool(cmd.Flags(), "json") {
-			return renderStatusJSON(s, args)
+			return renderStatusJSON(s, args, out)
 		}
 		if len(args) == 0 {
-			return statusAll(s)
+			return statusAll(s, out)
 		}
-		statusOne(s, args[0])
+		statusOne(s, args[0], out)
 		return nil
 	},
 }
@@ -53,24 +55,24 @@ func init() {
 // error if the slug isn't installed — same shape as the human path's
 // ui.Errorf, just promoted to a real error since --json consumers need
 // non-zero exit on missing slug to short-circuit their script).
-func renderStatusJSON(s *state.Store, args []string) error {
-	out := jsonout.StatusOutput{Themes: make([]jsonout.StatusEntry, 0)}
+func renderStatusJSON(s *state.Store, args []string, out io.Writer) error {
+	doc := jsonout.StatusOutput{Themes: make([]jsonout.StatusEntry, 0)}
 	switch {
 	case len(args) == 0:
 		for _, slug := range s.AllSlugs() {
 			rec, _ := s.Get(slug)
-			out.Themes = append(out.Themes, statusEntry(rec))
+			doc.Themes = append(doc.Themes, statusEntry(rec))
 		}
 	default:
 		rec, ok := s.Get(args[0])
 		if !ok {
 			return fmt.Errorf("%s is not installed", args[0])
 		}
-		out.Themes = append(out.Themes, statusEntry(rec))
+		doc.Themes = append(doc.Themes, statusEntry(rec))
 	}
-	enc := json.NewEncoder(ui.W)
+	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	return enc.Encode(doc)
 }
 
 // statusEntry converts a state.Record into the jsonout shape, looking
@@ -101,13 +103,13 @@ func statusEntry(rec state.Record) jsonout.StatusEntry {
 	return entry
 }
 
-func statusAll(s *state.Store) error {
+func statusAll(s *state.Store, out io.Writer) error {
 	if len(s.Records) == 0 {
-		ui.MutedLn("Nothing installed yet. Run `slatewave list` to see available themes.")
+		ui.MutedLn(out, "Nothing installed yet. Run `slatewave list` to see available themes.")
 		return nil
 	}
 	for _, slug := range s.AllSlugs() {
-		statusOne(s, slug)
+		statusOne(s, slug, out)
 	}
 	return nil
 }
@@ -115,36 +117,36 @@ func statusAll(s *state.Store) error {
 // statusOne prints the install footprint for one slug. It never errors
 // (missing-slug case is reported via ui.Errorf and short-circuits) so
 // the signature is void — callers don't need an error-check ceremony.
-func statusOne(s *state.Store, slug string) {
+func statusOne(s *state.Store, slug string, out io.Writer) {
 	rec, ok := s.Get(slug)
 	if !ok {
-		ui.Errorf("%s is not installed.", slug)
+		ui.Errorf(out, "%s is not installed.", slug)
 		return
 	}
 	name := slug
 	if t, err := manifest.LoadOne(slug); err == nil {
 		name = t.Theme.Name
 	}
-	fmt.Fprintln(ui.W, ui.AccentBold.Render(name))
-	fmt.Fprintln(ui.W, ui.Muted.Render(fmt.Sprintf("  installed %s", rec.InstalledAt.Local().Format("2006-01-02 15:04"))))
-	fmt.Fprintln(ui.W, ui.Muted.Render(fmt.Sprintf("  install: %s   activate: %s", rec.InstallType, fallback(rec.ActivateType, "none"))))
+	fmt.Fprintln(out, ui.AccentBold.Render(name))
+	fmt.Fprintln(out, ui.Muted.Render(fmt.Sprintf("  installed %s", rec.InstalledAt.Local().Format("2006-01-02 15:04"))))
+	fmt.Fprintln(out, ui.Muted.Render(fmt.Sprintf("  install: %s   activate: %s", rec.InstallType, fallback(rec.ActivateType, "none"))))
 	if len(rec.CreatedPaths) > 0 {
-		fmt.Fprintln(ui.W, ui.Muted.Render("  files:"))
+		fmt.Fprintln(out, ui.Muted.Render("  files:"))
 		for _, p := range rec.CreatedPaths {
-			fmt.Fprintln(ui.W, "    "+ui.Faint.Render(p))
+			fmt.Fprintln(out, "    "+ui.Faint.Render(p))
 		}
 	}
 	if rec.AppendedLine != nil {
-		fmt.Fprintln(ui.W, ui.Muted.Render(fmt.Sprintf("  appended to %s:", rec.AppendedLine.File)))
-		fmt.Fprintln(ui.W, "    "+ui.Code.Render(rec.AppendedLine.Line))
+		fmt.Fprintln(out, ui.Muted.Render(fmt.Sprintf("  appended to %s:", rec.AppendedLine.File)))
+		fmt.Fprintln(out, "    "+ui.Code.Render(rec.AppendedLine.Line))
 	}
 	if len(rec.Backups) > 0 {
-		fmt.Fprintln(ui.W, ui.Muted.Render("  backups:"))
+		fmt.Fprintln(out, ui.Muted.Render("  backups:"))
 		for _, b := range rec.Backups {
-			fmt.Fprintln(ui.W, "    "+ui.Faint.Render(b.Path))
+			fmt.Fprintln(out, "    "+ui.Faint.Render(b.Path))
 		}
 	}
-	fmt.Fprintln(ui.W)
+	fmt.Fprintln(out)
 }
 
 func fallback(s, def string) string {

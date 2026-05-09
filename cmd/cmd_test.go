@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,11 +45,11 @@ func setFlags(t *testing.T, cmd *cobra.Command, values map[string]string) func()
 	}
 }
 
-// cmdEnv isolates HOME (for state.Load), redirects ui.W into a buffer
-// for output assertions, and lets the caller swap the manifest set via
-// SLATEWAVE_MANIFESTS_DIR. The returned buffer captures everything the
-// cmd/ helpers print to ui.W during the test. All env tweaks are scoped
-// via t.Setenv so they auto-restore.
+// cmdEnv isolates HOME (for state.Load), wires a *bytes.Buffer into
+// every cobra command's Context() so RunE invocations route their
+// output via ui.Writer(cmd) here, and lets the caller swap the
+// manifest set via SLATEWAVE_MANIFESTS_DIR. The returned buffer
+// captures everything cmd helpers print during the test.
 type cmdEnv struct {
 	home string
 	out  *bytes.Buffer
@@ -62,9 +63,17 @@ func setupCmdEnv(t *testing.T) *cmdEnv {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
 
 	buf := &bytes.Buffer{}
-	prev := ui.W
-	ui.W = buf
-	t.Cleanup(func() { ui.W = prev })
+	// Bind the buffer into every cobra command's Context() so RunE
+	// invocations route their output here via ui.Writer(cmd). Set
+	// once on each command we drive from tests; cobra commands don't
+	// inherit context from siblings or the root.
+	ctx := ui.WithWriter(context.Background(), buf)
+	for _, c := range []*cobra.Command{
+		installCmd, uninstallCmd, updateCmd, listCmd, statusCmd,
+		doctorCmd, infoCmd, browseCmd, initCmd,
+	} {
+		c.SetContext(ctx)
+	}
 
 	return &cmdEnv{home: dir, out: buf}
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -46,6 +47,7 @@ reversed safely; they're skipped with a warning so the run keeps going.`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validInstalledArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		out := ui.Writer(cmd)
 		f := parseUninstallFlags(cmd)
 		if f.All && f.Category != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
@@ -59,14 +61,14 @@ reversed safely; they're skipped with a warning so the run keeps going.`,
 		}
 
 		if bulk {
-			return uninstallBulk(f)
+			return uninstallBulk(f, out)
 		}
-		return uninstallOne(args[0], f)
+		return uninstallOne(args[0], f, out)
 	},
 }
 
 // uninstallOne is the shared uninstall pipeline — used by `slatewave uninstall <slug>` and by `slatewave browse` when the user picks the uninstall action. Honors f.DryRun.
-func uninstallOne(slug string, f uninstallFlags) error {
+func uninstallOne(slug string, f uninstallFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -81,10 +83,10 @@ func uninstallOne(slug string, f uninstallFlags) error {
 		return fmt.Errorf("no manifest for %q — cannot uninstall safely", slug)
 	}
 
-	ui.Header("Uninstalling", t.Theme.Name)
+	ui.Header(out, "Uninstalling", t.Theme.Name)
 
 	opts := installer.Options{DryRun: f.DryRun}
-	done := ui.StepStart("Reversing install footprint")
+	done := ui.StepStart(out, "Reversing install footprint")
 	if err := installer.Uninstall(rec, t, opts); err != nil {
 		done(err)
 		return err
@@ -101,9 +103,9 @@ func uninstallOne(slug string, f uninstallFlags) error {
 	}
 
 	if f.DryRun {
-		ui.Done("Dry run — nothing reverted.")
+		ui.Done(out, "Dry run — nothing reverted.")
 	} else {
-		ui.Done(uninstallDoneMessage(t))
+		ui.Done(out, uninstallDoneMessage(t))
 	}
 	return nil
 }
@@ -120,7 +122,7 @@ func uninstallDoneMessage(t manifest.Theme) string {
 }
 
 // uninstallBulk iterates installed slugs (filtered by category if set), running uninstallOne for each. Mirrors updateBulk's shape — individual failures are reported and the run continues so one broken reversal doesn't strand the rest installed.
-func uninstallBulk(f uninstallFlags) error {
+func uninstallBulk(f uninstallFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -140,29 +142,29 @@ func uninstallBulk(f uninstallFlags) error {
 		if f.Category != "" {
 			return fmt.Errorf("no installed themes in category %q", f.Category)
 		}
-		ui.MutedLn("Nothing to uninstall — no themes installed.")
+		ui.MutedLn(out, "Nothing to uninstall — no themes installed.")
 		return nil
 	}
 
 	var removed, failed int
 	for i, slug := range slugs {
 		if i > 0 {
-			fmt.Fprintln(ui.W)
+			fmt.Fprintln(out)
 		}
-		if err := uninstallOne(slug, f); err != nil {
-			ui.Errorf("%s: %v", slug, err)
+		if err := uninstallOne(slug, f, out); err != nil {
+			ui.Errorf(out, "%s: %v", slug, err)
 			failed++
 			continue
 		}
 		removed++
 	}
 
-	fmt.Fprintln(ui.W)
+	fmt.Fprintln(out)
 	switch {
 	case failed > 0:
-		ui.Done(fmt.Sprintf("%d uninstalled, %d failed.", removed, failed))
+		ui.Done(out, fmt.Sprintf("%d uninstalled, %d failed.", removed, failed))
 	default:
-		ui.Done(fmt.Sprintf("%d uninstalled.", removed))
+		ui.Done(out, fmt.Sprintf("%d uninstalled.", removed))
 	}
 	return nil
 }

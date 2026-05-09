@@ -34,7 +34,8 @@ func init() {
 	rootCmd.AddCommand(browseCmd)
 }
 
-func runBrowse(_ *cobra.Command, _ []string) error {
+func runBrowse(cmd *cobra.Command, _ []string) error {
+	out := ui.Writer(cmd)
 	themes, err := manifest.LoadSupported()
 	if err != nil {
 		return fmt.Errorf("load manifests: %w", err)
@@ -65,16 +66,16 @@ func runBrowse(_ *cobra.Command, _ []string) error {
 
 	switch action.Kind {
 	case tui.BrowseInstall:
-		fmt.Fprintln(ui.W)
+		fmt.Fprintln(out)
 		// Browser-driven installs are inherently interactive — the user
 		// just picked a row in a TUI. Pass a default-zero installFlags;
 		// dry-run / category etc. don't apply when the choice is single.
-		return installInteractiveTUI([]string{action.Slug}, installFlags{})
+		return installInteractiveTUI([]string{action.Slug}, installFlags{}, out)
 	case tui.BrowseUninstall:
-		fmt.Fprintln(ui.W)
+		fmt.Fprintln(out)
 		// Browser-driven uninstalls don't expose --dry-run / --category
 		// in the TUI; pass zero-value uninstallFlags.
-		return uninstallOne(action.Slug, uninstallFlags{})
+		return uninstallOne(action.Slug, uninstallFlags{}, out)
 	}
 	return nil
 }

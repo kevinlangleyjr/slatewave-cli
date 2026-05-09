@@ -34,8 +34,9 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-func runInit(_ *cobra.Command, _ []string) error {
-	ui.PrintBanner()
+func runInit(cmd *cobra.Command, _ []string) error {
+	out := ui.Writer(cmd)
+	ui.PrintBanner(out)
 
 	themes, err := manifest.LoadSupported()
 	if err != nil {
@@ -50,40 +51,40 @@ func runInit(_ *cobra.Command, _ []string) error {
 		installedSet[slug] = true
 	}
 
-	ui.MutedLn("Detecting tools on your machine…")
+	ui.MutedLn(out, "Detecting tools on your machine…")
 	detected := tui.DetectAll(themes, installedSet)
 
 	available, alreadyInstalled, missingTool := summarize(detected)
-	ui.MutedLn(fmt.Sprintf("  %d available · %d already installed · %d tool not detected",
+	ui.MutedLn(out, fmt.Sprintf("  %d available · %d already installed · %d tool not detected",
 		available, alreadyInstalled, missingTool))
-	fmt.Fprintln(ui.W)
+	fmt.Fprintln(out)
 
 	if available == 0 {
-		ui.Done("Nothing to install — every detected tool already has Slatewave applied.")
+		ui.Done(out, "Nothing to install — every detected tool already has Slatewave applied.")
 		return nil
 	}
 
 	slugs, err := tui.PickThemes(detected)
 	if err != nil {
 		if errors.Is(err, tui.ErrAborted) {
-			ui.MutedLn("Aborted. Nothing installed.")
+			ui.MutedLn(out, "Aborted. Nothing installed.")
 			return nil
 		}
 		return err
 	}
 	if len(slugs) == 0 {
-		ui.MutedLn("No themes selected. Nothing installed.")
+		ui.MutedLn(out, "No themes selected. Nothing installed.")
 		return nil
 	}
 
-	fmt.Fprintln(ui.W)
+	fmt.Fprintln(out)
 	// init is the first-run wizard — no flags to thread; pass a zero
 	// installFlags so the install runs in non-dry-run, non-category mode.
-	if err := installInteractiveTUI(slugs, installFlags{}); err != nil {
+	if err := installInteractiveTUI(slugs, installFlags{}, out); err != nil {
 		return err
 	}
 
-	ui.Done(fmt.Sprintf("%d theme(s) processed. Welcome to Slatewave.", len(slugs)))
+	ui.Done(out, fmt.Sprintf("%d theme(s) processed. Welcome to Slatewave.", len(slugs)))
 	return nil
 }
 

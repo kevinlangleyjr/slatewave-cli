@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -55,6 +56,7 @@ with a one-line hint and continue.`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validInstalledArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		out := ui.Writer(cmd)
 		f := parseUpdateFlags(cmd)
 		if f.All && f.Category != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
@@ -70,23 +72,20 @@ with a one-line hint and continue.`,
 			return fmt.Errorf("specify a theme name, --all, or --category=<name>")
 		}
 
-		// Same dispatch pattern as install: bulk on a TTY defaults to
-		// the dashboard; piped / CI runs fall back to the streaming
-		// summary; --interactive / --no-interactive override either way.
 		switch {
 		case f.Interactive:
-			return updateInteractiveTUI(args, bulk, f)
+			return updateInteractiveTUI(args, bulk, f, out)
 		case f.NoInteractive:
 			if !bulk {
-				return updateOne(args[0], false, f)
+				return updateOne(args[0], false, f, out)
 			}
-			return updateBulk(f)
+			return updateBulk(f, out)
 		case !bulk:
-			return updateOne(args[0], false, f)
+			return updateOne(args[0], false, f, out)
 		case isTerminal():
-			return updateInteractiveTUI(args, bulk, f)
+			return updateInteractiveTUI(args, bulk, f, out)
 		default:
-			return updateBulk(f)
+			return updateBulk(f, out)
 		}
 	},
 }
@@ -100,8 +99,7 @@ func init() {
 	_ = updateCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
-// updateInteractiveTUI runs the update pipeline through the bubbletea dashboard. Loads each requested slug's manifest, drops marketplace + manual themes (no automated update path — would just clutter the dashboard with "failed: no automated update" rows), and hands the rest to tui.RunFix with FixUpdate. Reuses the fix dashboard since the pipeline is identical (refresh assets + post-hook + bump InstalledAt).
-func updateInteractiveTUI(args []string, bulk bool, f updateFlags) error {
+func updateInteractiveTUI(args []string, bulk bool, f updateFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -131,7 +129,7 @@ func updateInteractiveTUI(args []string, bulk bool, f updateFlags) error {
 	for _, slug := range slugs {
 		t, err := manifest.LoadOne(slug)
 		if err != nil {
-			ui.Errorf("%s: no manifest — skipping", slug)
+			ui.Errorf(out, "%s: no manifest — skipping", slug)
 			continue
 		}
 		if !manifest.SupportsCurrentOS(t) {
@@ -153,24 +151,21 @@ func updateInteractiveTUI(args []string, bulk bool, f updateFlags) error {
 	}
 
 	for _, slug := range skipped {
-		ui.MutedLn(fmt.Sprintf("Skipping %s — install type has no automated update.", slug))
+		ui.MutedLn(out, fmt.Sprintf("Skipping %s — install type has no automated update.", slug))
 	}
 	if len(skipped) > 0 {
-		fmt.Fprintln(ui.W)
+		fmt.Fprintln(out)
 	}
 
 	if len(fixes) == 0 {
-		ui.Done("Nothing to update.")
+		ui.Done(out, "Nothing to update.")
 		return nil
 	}
 
 	return tui.RunFix(fixes, tui.FixOptions{DryRun: f.DryRun, Title: "Updating"})
 }
 
-// updateBulk iterates every installed slug, optionally filtered by
-// category, calling updateOne for each. Individual failures are reported
-// and the run continues.
-func updateBulk(f updateFlags) error {
+func updateBulk(f updateFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -180,18 +175,11 @@ func updateBulk(f updateFlags) error {
 	for _, slug := range s.AllSlugs() {
 		th, err := manifest.LoadOne(slug)
 		if err != nil {
-			// State references a slug we no longer ship a manifest for —
-			// leave it for `slatewave doctor` to surface; bulk update just
-			// skips it silently.
 			continue
 		}
 		if f.Category != "" && th.Theme.Category != f.Category {
 			continue
 		}
-		// State.json may have been seeded on a different OS (dual boot,
-		// machine migration). Silently skip themes whose manifest no
-		// longer claims this OS — updateOne would error out per-theme
-		// anyway, and a bulk run shouldn't surface that as a failure.
 		if !manifest.SupportsCurrentOS(th) {
 			continue
 		}
@@ -201,42 +189,38 @@ func updateBulk(f updateFlags) error {
 		if f.Category != "" {
 			return fmt.Errorf("no installed themes in category %q", f.Category)
 		}
-		ui.MutedLn("Nothing to update — no themes installed.")
+		ui.MutedLn(out, "Nothing to update — no themes installed.")
 		return nil
 	}
 
 	var updated, skipped, failed int
 	for i, slug := range slugs {
 		if i > 0 {
-			fmt.Fprintln(ui.W)
+			fmt.Fprintln(out)
 		}
-		err := updateOne(slug, true, f)
+		err := updateOne(slug, true, f, out)
 		switch {
 		case errors.Is(err, installer.ErrNoAutomatedUpdate):
 			skipped++
 		case err != nil:
-			ui.Errorf("%s: %v", slug, err)
+			ui.Errorf(out, "%s: %v", slug, err)
 			failed++
 		default:
 			updated++
 		}
 	}
 
-	fmt.Fprintln(ui.W)
+	fmt.Fprintln(out)
 	switch {
 	case failed > 0:
-		ui.Done(fmt.Sprintf("%d updated, %d skipped, %d failed.", updated, skipped, failed))
+		ui.Done(out, fmt.Sprintf("%d updated, %d skipped, %d failed.", updated, skipped, failed))
 	default:
-		ui.Done(fmt.Sprintf("%d updated, %d skipped.", updated, skipped))
+		ui.Done(out, fmt.Sprintf("%d updated, %d skipped.", updated, skipped))
 	}
 	return nil
 }
 
-// updateOne re-fetches assets for one installed theme.
-//
-// suppressFinal — when true (bulk mode), skip the per-theme final
-// "Up to date." line so the bulk caller can render its own summary.
-func updateOne(slug string, suppressFinal bool, f updateFlags) error {
+func updateOne(slug string, suppressFinal bool, f updateFlags, out io.Writer) error {
 	t, err := manifest.LoadOne(slug)
 	if err != nil {
 		return fmt.Errorf("no manifest for %q", slug)
@@ -254,14 +238,14 @@ func updateOne(slug string, suppressFinal bool, f updateFlags) error {
 		return fmt.Errorf("%s is not installed (run `slatewave install %s` first)", slug, slug)
 	}
 
-	ui.Header("Updating", t.Theme.Name)
+	ui.Header(out, "Updating", t.Theme.Name)
 
 	opts := installer.Options{DryRun: f.DryRun}
-	done := ui.StepStart(updateLabel(t))
+	done := ui.StepStart(out, updateLabel(t))
 	if err := installer.Update(t, opts); err != nil {
 		if errors.Is(err, installer.ErrNoAutomatedUpdate) {
 			done(nil)
-			ui.MutedLn(fmt.Sprintf("  No automated update for install type %q — check getslatewave.com/themes/%s for the latest steps.", t.Install.Type, slug))
+			ui.MutedLn(out, fmt.Sprintf("  No automated update for install type %q — check getslatewave.com/themes/%s for the latest steps.", t.Install.Type, slug))
 			return err
 		}
 		done(err)
@@ -269,10 +253,8 @@ func updateOne(slug string, suppressFinal bool, f updateFlags) error {
 	}
 	done(nil)
 
-	// Re-run the post-hook so derived caches (e.g., `bat cache --build`)
-	// reflect the refreshed asset.
 	if t.Install.Post != nil {
-		done := ui.StepStart(t.Install.Post.Description)
+		done := ui.StepStart(out, t.Install.Post.Description)
 		if !f.DryRun {
 			if err := shell.RunInherit(context.Background(), t.Install.Post.Command); err != nil {
 				done(err)
@@ -282,8 +264,6 @@ func updateOne(slug string, suppressFinal bool, f updateFlags) error {
 		done(nil)
 	}
 
-	// Bump the install timestamp so `slatewave status` reflects the
-	// last refresh.
 	if !f.DryRun {
 		if err := state.Update(func(s *state.Store) error {
 			rec.InstalledAt = time.Now().UTC()
@@ -298,9 +278,9 @@ func updateOne(slug string, suppressFinal bool, f updateFlags) error {
 		return nil
 	}
 	if f.DryRun {
-		ui.Done("Dry run — no files written.")
+		ui.Done(out, "Dry run — no files written.")
 	} else {
-		ui.Done("Up to date.")
+		ui.Done(out, "Up to date.")
 	}
 	return nil
 }
