@@ -175,6 +175,58 @@ func TestDoCurl_HungServerHitsHTTPTimeout(t *testing.T) {
 	}
 }
 
+// A response that exceeds the per-fetch byte cap must error out before
+// it fills the disk. Test shrinks the cap to 16 bytes and serves 64 — if
+// the cap fires, the dest file is removed too (no partial theme file
+// left behind for callers to treat as installed).
+func TestDoCurl_RejectsOversizedResponse(t *testing.T) {
+	defer SetMaxFetchBytesForTest(16)()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("a", 64)))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	th := curlTheme(srv.URL, dir, "x.tmTheme")
+
+	_, err := Install(th, Options{})
+	if err == nil {
+		t.Fatal("oversized response: want error, got nil")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("oversized response: err = %v, want `exceeds` in message", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "x.tmTheme")); !os.IsNotExist(err) {
+		t.Errorf("oversized response: partial file left at dest, stat err = %v", err)
+	}
+}
+
+// A server returning text/html is almost never serving a theme — it's a
+// captive portal, error page, or redirect target. Reject before writing
+// to the user's config dir.
+func TestDoCurl_RejectsHTMLContentType(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte("<html>not a theme</html>"))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	th := curlTheme(srv.URL, dir, "x.tmTheme")
+
+	_, err := Install(th, Options{})
+	if err == nil {
+		t.Fatal("text/html response: want error, got nil")
+	}
+	if !strings.Contains(err.Error(), "text/html") {
+		t.Errorf("text/html response: err = %v, want `text/html` in message", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "x.tmTheme")); !os.IsNotExist(err) {
+		t.Errorf("text/html response: file written despite rejection, stat err = %v", err)
+	}
+}
+
 func TestDoCurl_404SurfacesAsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.NotFound(w, nil)

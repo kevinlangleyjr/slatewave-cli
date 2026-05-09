@@ -56,6 +56,50 @@ func SetDetectTimeoutForTest(d time.Duration) func() {
 	return func() { detectTimeout = prev }
 }
 
+// maxFetchBytes caps the response body any curl/refetch path will write.
+// Theme files are universally tiny (the largest in the embedded set is a
+// few hundred KB); 100 MiB is a paranoid ceiling against a compromised
+// or misconfigured CDN streaming an unbounded response and filling the
+// user's disk.
+var maxFetchBytes int64 = 100 << 20
+
+// SetMaxFetchBytesForTest swaps maxFetchBytes and returns a restorer.
+func SetMaxFetchBytesForTest(n int64) func() {
+	prev := maxFetchBytes
+	maxFetchBytes = n
+	return func() { maxFetchBytes = prev }
+}
+
+// rejectHTMLContentType returns an error when the response advertises
+// text/html. No theme in the registry is HTML, so a text/html response
+// is almost always a captive-portal landing page, a 200-status error
+// page from a misconfigured server, or an unexpected redirect target —
+// silently writing it to the user's config directory would just confuse
+// their tool downstream. Other content types pass through (theme files
+// vary widely: .tmTheme is XML, .toml is text/plain or octet-stream,
+// .lua is whatever the host serves it as).
+func rejectHTMLContentType(url, ct string) error {
+	if strings.HasPrefix(strings.ToLower(ct), "text/html") {
+		return fmt.Errorf("fetch %s: server returned text/html (Content-Type: %s) — expected theme content", url, ct)
+	}
+	return nil
+}
+
+// copyCapped wraps body in an io.LimitReader sized to maxFetchBytes+1
+// before copying to dst. Returns an error if the response would exceed
+// the cap (catches a runaway server before it fills the disk).
+func copyCapped(dst io.Writer, body io.Reader, url string) error {
+	limited := io.LimitReader(body, maxFetchBytes+1)
+	n, err := io.Copy(dst, limited)
+	if err != nil {
+		return err
+	}
+	if n > maxFetchBytes {
+		return fmt.Errorf("fetch %s: response exceeds %d-byte cap", url, maxFetchBytes)
+	}
+	return nil
+}
+
 // Options controls install behavior at the call site.
 type Options struct {
 	DryRun bool
@@ -177,12 +221,19 @@ func fetchToFile(url, dest string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("fetch %s: %s", url, resp.Status)
 	}
+	if err := rejectHTMLContentType(url, resp.Header.Get("Content-Type")); err != nil {
+		return err
+	}
 	f, err := os.Create(dest)
 	if err != nil {
 		return fmt.Errorf("write %s: %w", dest, err)
 	}
 	defer func() { _ = f.Close() }()
-	if _, err := io.Copy(f, resp.Body); err != nil {
+	if err := copyCapped(f, resp.Body, url); err != nil {
+		// On overflow / mid-copy error, leave nothing partial behind —
+		// state hasn't been written yet, the dest dir would otherwise be
+		// holding an unfinished theme file the caller would treat as good.
+		_ = os.Remove(dest)
 		return fmt.Errorf("write %s: %w", dest, err)
 	}
 	return nil
