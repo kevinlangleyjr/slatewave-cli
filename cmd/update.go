@@ -17,10 +17,11 @@ import (
 )
 
 var (
-	updateDryRun      bool
-	updateAll         bool
-	updateCategory    string
-	updateInteractive bool
+	updateDryRun        bool
+	updateAll           bool
+	updateCategory      string
+	updateInteractive   bool
+	updateNoInteractive bool
 )
 
 var updateCmd = &cobra.Command{
@@ -45,6 +46,9 @@ with a one-line hint and continue.`,
 		if updateAll && updateCategory != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
 		}
+		if updateInteractive && updateNoInteractive {
+			return fmt.Errorf("--interactive and --no-interactive are mutually exclusive")
+		}
 		bulk := updateAll || updateCategory != ""
 		if bulk && len(args) > 0 {
 			return fmt.Errorf("don't pass a theme name with --all or --category")
@@ -53,14 +57,24 @@ with a one-line hint and continue.`,
 			return fmt.Errorf("specify a theme name, --all, or --category=<name>")
 		}
 
-		if updateInteractive {
+		// Same dispatch pattern as install: bulk on a TTY defaults to
+		// the dashboard; piped / CI runs fall back to the streaming
+		// summary; --interactive / --no-interactive override either way.
+		switch {
+		case updateInteractive:
 			return updateInteractiveTUI(args, bulk)
-		}
-
-		if !bulk {
+		case updateNoInteractive:
+			if !bulk {
+				return updateOne(args[0], false)
+			}
+			return updateBulk()
+		case !bulk:
 			return updateOne(args[0], false)
+		case isTerminal():
+			return updateInteractiveTUI(args, bulk)
+		default:
+			return updateBulk()
 		}
-		return updateBulk()
 	},
 }
 
@@ -68,7 +82,8 @@ func init() {
 	updateCmd.Flags().BoolVar(&updateDryRun, "dry-run", false, "Print what would happen without re-fetching")
 	updateCmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed theme")
 	updateCmd.Flags().StringVar(&updateCategory, "category", "", "Update every installed theme in this category")
-	updateCmd.Flags().BoolVar(&updateInteractive, "interactive", false, "Show a live progress dashboard instead of streamed step output")
+	updateCmd.Flags().BoolVar(&updateInteractive, "interactive", false, "Force the live progress dashboard (default for bulk updates on a TTY)")
+	updateCmd.Flags().BoolVar(&updateNoInteractive, "no-interactive", false, "Force streaming output instead of the dashboard (useful for CI / log capture)")
 	_ = updateCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
