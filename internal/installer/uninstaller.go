@@ -138,8 +138,23 @@ func removeShellRCLine(file, line, marker string, opts Options) error {
 		}
 		return fmt.Errorf("read %s: %w", file, err)
 	}
+	updated, dropped := removeShellRCLineFromContent(string(data), line, marker)
+	if !dropped {
+		return nil // nothing to do
+	}
+	if opts.DryRun {
+		return nil
+	}
+	return os.WriteFile(file, []byte(updated), preservedMode(file))
+}
+
+// removeShellRCLineFromContent is the pure line-based rewrite that
+// removeShellRCLine wraps with file IO. Extracted so the algorithm
+// can be fuzz-tested without filesystem effects (and unit-tested
+// against in-memory fixtures with no temp dir scaffolding).
+func removeShellRCLineFromContent(content, line, marker string) (string, bool) {
 	target := strings.TrimSpace(line)
-	inputLines := strings.Split(string(data), "\n")
+	inputLines := strings.Split(content, "\n")
 	out := make([]string, 0, len(inputLines))
 	dropped := false
 	i := 0
@@ -167,11 +182,5 @@ func removeShellRCLine(file, line, marker string, opts Options) error {
 		out = append(out, l)
 		i++
 	}
-	if !dropped {
-		return nil // nothing to do
-	}
-	if opts.DryRun {
-		return nil
-	}
-	return os.WriteFile(file, []byte(strings.Join(out, "\n")), preservedMode(file))
+	return strings.Join(out, "\n"), dropped
 }
