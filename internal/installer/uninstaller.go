@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
@@ -58,7 +59,13 @@ func Uninstall(rec state.Record, t manifest.Theme, opts Options) error {
 	if rec.AppendedLine != nil {
 		if rec.AppendedLine.File == "git-config-include" {
 			if !opts.DryRun {
-				cmd := exec.Command("git", "config", "--global", "--unset-all", "include.path", rec.AppendedLine.Line)
+				// `git config --unset-all <name> <value-pattern>` treats
+				// the value as a regex — paths contain `.` which would
+				// match any character, risking removal of an unrelated
+				// include. Anchor and escape so we only match the exact
+				// path we recorded.
+				pattern := "^" + regexp.QuoteMeta(rec.AppendedLine.Line) + "$"
+				cmd := exec.Command("git", "config", "--global", "--unset-all", "include.path", pattern)
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("git config --unset-all include.path: %w\n%s", err, out)
 				}

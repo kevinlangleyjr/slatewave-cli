@@ -2,6 +2,7 @@ package installer
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,27 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 )
+
+// hasGit reports whether `git` is on PATH. Tests that exercise the
+// gitconfig reversal path skip cleanly when it isn't (highly unlikely
+// on dev / CI but the alternative is a misleading panic in t.Fatal).
+func hasGit() bool {
+	_, err := exec.LookPath("git")
+	return err == nil
+}
+
+// gitInTempHome redirects HOME / XDG / GIT_CONFIG_GLOBAL so `git config
+// --global` writes to a per-test .gitconfig instead of the user's real
+// one. Mirrors the activator package's helper of the same name; both
+// could move into a shared testutil if a third caller appears.
+func gitInTempHome(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(dir, ".gitconfig"))
+	return dir
+}
 
 // stubTheme is a minimal manifest.Theme for uninstall tests that don't
 // exercise type-specific reversal (vscode-ext etc.).
@@ -318,6 +340,57 @@ func TestUninstall_RestoreUsesBackupFileMode(t *testing.T) {
 	}
 }
 
+// `git config --unset-all <name> <value-pattern>` treats the value as
+// a regex. Paths contain `.`, which would match any character — without
+// the regexp.QuoteMeta + ^…$ anchors we'd risk removing an unrelated
+// include whose path coincidentally matches.
+//
+// The test seeds two includes whose paths differ only in a character
+// position where one has `.` and the other has `x`. An unescaped
+// pattern based on the first path matches both; an escaped+anchored
+// pattern only matches the first.
+func TestUninstall_GitconfigInclude_RegexEscapesPath(t *testing.T) {
+	if !hasGit() {
+		t.Skip("git not on PATH")
+	}
+	dir := gitInTempHome(t)
+	target := filepath.Join(dir, "a.gitconfig")  // the one we want unset
+	collide := filepath.Join(dir, "axgitconfig") // unrelated; matches if `.` is unescaped
+	for _, p := range []string{target, collide} {
+		if err := os.WriteFile(p, []byte("# noop\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		out, err := exec.Command("git", "config", "--global", "--add", "include.path", p).CombinedOutput()
+		if err != nil {
+			t.Fatalf("seed include.path %s: %v\n%s", p, err, out)
+		}
+	}
+
+	rec := state.Record{
+		Slug:         "delta",
+		InstallType:  "curl",
+		ActivateType: "gitconfig-include",
+		AppendedLine: &state.Appended{File: "git-config-include", Line: target},
+	}
+	if err := Uninstall(rec, stubTheme("delta", "curl"), Options{}); err != nil {
+		t.Fatalf("Uninstall: %v", err)
+	}
+
+	out, err := exec.Command("git", "config", "--global", "--get-all", "include.path").CombinedOutput()
+	if err != nil && !strings.Contains(err.Error(), "exit status 1") {
+		// exit 1 just means "no values found" — fine if all entries were
+		// (incorrectly) removed; the assertions below catch that.
+		t.Fatalf("git config --get-all: %v\n%s", err, out)
+	}
+	got := string(out)
+	if strings.Contains(got, target) {
+		t.Errorf("target include %q still present after uninstall:\n%s", target, got)
+	}
+	if !strings.Contains(got, collide) {
+		t.Errorf("unrelated include %q was removed (regex collision):\n%s", collide, got)
+	}
+}
+
 func TestUninstall_DryRunMakesNoChanges(t *testing.T) {
 	dir := t.TempDir()
 	created := filepath.Join(dir, "Slatewave.tmTheme")
@@ -332,3 +405,4 @@ func TestUninstall_DryRunMakesNoChanges(t *testing.T) {
 		t.Errorf("dry-run uninstall removed the file: %v", err)
 	}
 }
+
