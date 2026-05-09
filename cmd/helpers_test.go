@@ -59,6 +59,12 @@ func TestResolveSlugs_SingleArgPassesThrough(t *testing.T) {
 }
 
 func TestResolveSlugs_BulkAllReturnsEverySlug(t *testing.T) {
+	// Force darwin so we exercise the full embedded manifest set.
+	// Windows would naturally surface only the 7 manifests opting in
+	// to supported_os = ["windows"]; that's covered by the dedicated
+	// TestResolveSlugs_BulkFiltersUnsupportedOS test below.
+	defer manifest.SetGOOSForTest("darwin")()
+
 	got, err := resolveSlugs(nil, true, installFlags{})
 	if err != nil {
 		t.Fatalf("resolveSlugs bulk: %v", err)
@@ -347,6 +353,12 @@ func TestValidInstallArgs_StopsAfterFirstArg(t *testing.T) {
 }
 
 func TestValidInstallArgs_FiltersByPrefix(t *testing.T) {
+	// Force darwin: bat doesn't claim Windows in supported_os, so on
+	// the windows-latest matrix the completion would (correctly) hide
+	// it. The prefix-filter behavior under test is OS-independent;
+	// pinning the OS lets the test target the full embedded set.
+	defer manifest.SetGOOSForTest("darwin")()
+
 	got, dir := validInstallArgs(nil, nil, "ba")
 	if dir != cobra.ShellCompDirectiveNoFileComp {
 		t.Errorf("directive = %v, want NoFileComp", dir)
@@ -368,6 +380,8 @@ func TestValidInstallArgs_FiltersByPrefix(t *testing.T) {
 }
 
 func TestValidInstallArgs_EmptyPrefixReturnsAll(t *testing.T) {
+	defer manifest.SetGOOSForTest("darwin")()
+
 	got, _ := validInstallArgs(nil, nil, "")
 	if len(got) < 10 {
 		t.Errorf("empty-prefix completion returned %d slugs, expected the full embedded set", len(got))
