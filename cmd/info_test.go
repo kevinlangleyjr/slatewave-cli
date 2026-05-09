@@ -121,3 +121,37 @@ func TestInfoCmd_UnknownSlugErrors(t *testing.T) {
 		t.Errorf("expected `did you mean` hint, got: %v", err)
 	}
 }
+
+// --interactive and --no-interactive together must surface a clean
+// "mutually exclusive" error rather than silently letting one win.
+func TestInstallCmd_InteractiveAndNoInteractiveConflict(t *testing.T) {
+	t.Cleanup(func() {
+		installInteractive = false
+		installNoInteractive = false
+		installAll = false
+	})
+	installInteractive = true
+	installNoInteractive = true
+	installAll = true // also satisfy the bulk shape
+
+	err := installCmd.RunE(installCmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("conflicting flags: err = %v, want `mutually exclusive`", err)
+	}
+}
+
+func TestUpdateCmd_InteractiveAndNoInteractiveConflict(t *testing.T) {
+	t.Cleanup(func() {
+		updateInteractive = false
+		updateNoInteractive = false
+		updateAll = false
+	})
+	updateInteractive = true
+	updateNoInteractive = true
+	updateAll = true
+
+	err := updateCmd.RunE(updateCmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("conflicting flags: err = %v, want `mutually exclusive`", err)
+	}
+}

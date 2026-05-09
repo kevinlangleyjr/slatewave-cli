@@ -76,15 +76,15 @@ slatewave list                            # every theme, with ● / ○ install 
 slatewave list --category=editor          # only one category
 
 slatewave install <theme>                 # install + activate one theme
-slatewave install --all                   # install every shipping theme
-slatewave install --category=editor       # install every theme in a category
-slatewave install --interactive <flags>   # live progress dashboard instead of streamed steps
+slatewave install --all                   # bulk install — live dashboard on a TTY, streaming otherwise
+slatewave install --category=editor       # bulk install scoped to a category
+slatewave install --all --no-interactive  # force streaming output (e.g. for CI logs)
 slatewave install <theme> --dry-run       # preview the plan
 
 slatewave update <theme>                  # re-fetch curl assets / git pull clones
-slatewave update --all                    # update every installed theme
-slatewave update --category=editor        # update every installed theme in a category
-slatewave update --interactive <flags>    # live progress dashboard
+slatewave update --all                    # bulk update — live dashboard on a TTY, streaming otherwise
+slatewave update --category=editor        # bulk update scoped to a category
+slatewave update --all --no-interactive   # force streaming output
 
 slatewave uninstall <theme>               # reverse files, restore backups, remove appended lines
 slatewave uninstall --all                 # uninstall every installed theme

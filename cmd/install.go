@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	installDryRun      bool
-	installAll         bool
-	installCategory    string
-	installInteractive bool
+	installDryRun        bool
+	installAll           bool
+	installCategory      string
+	installInteractive   bool
+	installNoInteractive bool
 )
 
 var installCmd = &cobra.Command{
@@ -39,6 +40,9 @@ at the end.`,
 		if installAll && installCategory != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
 		}
+		if installInteractive && installNoInteractive {
+			return fmt.Errorf("--interactive and --no-interactive are mutually exclusive")
+		}
 		bulk := installAll || installCategory != ""
 		if bulk && len(args) > 0 {
 			return fmt.Errorf("don't pass a theme name with --all or --category")
@@ -52,14 +56,30 @@ at the end.`,
 			return err
 		}
 
-		if installInteractive {
+		// Dispatch:
+		//   --interactive          → TUI (handles a TUI-wrapped runner the
+		//                             stdout-stat check might miss).
+		//   --no-interactive       → streaming (forces summary mode even
+		//                             on a TTY; also the right default for
+		//                             CI).
+		//   bulk + TTY (default)   → TUI dashboard.
+		//   bulk + no TTY          → streaming summary.
+		//   single (no bulk flag)  → streaming, single-theme pipeline.
+		switch {
+		case installInteractive:
 			return installInteractiveTUI(slugs)
-		}
-
-		if !bulk {
+		case installNoInteractive:
+			if !bulk {
+				return installOne(slugs[0], false)
+			}
+			return installBulk(slugs)
+		case !bulk:
 			return installOne(slugs[0], false)
+		case isTerminal():
+			return installInteractiveTUI(slugs)
+		default:
+			return installBulk(slugs)
 		}
-		return installBulk(slugs)
 	},
 }
 
@@ -67,7 +87,8 @@ func init() {
 	installCmd.Flags().BoolVar(&installDryRun, "dry-run", false, "Print what would happen without writing files")
 	installCmd.Flags().BoolVar(&installAll, "all", false, "Install every shipping theme")
 	installCmd.Flags().StringVar(&installCategory, "category", "", "Install every theme in this category (editor / terminal / notes / productivity / chat)")
-	installCmd.Flags().BoolVar(&installInteractive, "interactive", false, "Show a live progress dashboard instead of streamed step output")
+	installCmd.Flags().BoolVar(&installInteractive, "interactive", false, "Force the live progress dashboard (default for bulk installs on a TTY)")
+	installCmd.Flags().BoolVar(&installNoInteractive, "no-interactive", false, "Force streaming output instead of the dashboard (useful for CI / log capture)")
 	_ = installCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
