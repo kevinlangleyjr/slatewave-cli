@@ -2,19 +2,24 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/kevinlangleyjr/slatewave-cli/internal/jsonout"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/manifest"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/shell"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/state"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
 
-var listCategory string
+var (
+	listCategory string
+	listJSON     bool
+)
 
 var listCmd = &cobra.Command{
 	Use:   "list",
@@ -68,6 +73,10 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 			return fmt.Errorf("no themes in category %q (try one of: %s)", listCategory, strings.Join(order, ", "))
 		}
 
+		if listJSON {
+			return renderListJSON(themes, s, order, groups)
+		}
+
 		var rows []string
 		for _, cat := range order {
 			ts := groups[cat]
@@ -106,7 +115,55 @@ as not-installed. To audit drift without mutating state, use ` + "`slatewave doc
 
 func init() {
 	listCmd.Flags().StringVar(&listCategory, "category", "", "Only show themes in this category (editor / terminal / notes / productivity / chat)")
+	listCmd.Flags().BoolVar(&listJSON, "json", false, "Emit machine-readable JSON to stdout (see internal/jsonout for the schema)")
 	_ = listCmd.RegisterFlagCompletionFunc("category", validCategories)
+}
+
+// renderListJSON emits the same theme set / counts as the human-readable
+// list, just in machine-readable shape. order + groups are passed in so
+// JSON output preserves the same category-based stable ordering as the
+// rendered version (callers shouldn't see a different theme order
+// between --json and not).
+func renderListJSON(themes []manifest.Theme, s *state.Store, order []string, groups map[string][]manifest.Theme) error {
+	out := jsonout.ListOutput{Themes: make([]jsonout.ThemeRow, 0)}
+	for _, cat := range order {
+		for _, t := range groups[cat] {
+			row := jsonout.ThemeRow{
+				Slug:     t.Theme.Slug,
+				Name:     t.Theme.Name,
+				Category: t.Theme.Category,
+			}
+			if rec, ok := s.Get(t.Theme.Slug); ok {
+				installed := rec.InstalledAt
+				row.Installed = true
+				row.InstalledAt = &installed
+				row.InstallType = rec.InstallType
+				row.ActivateType = rec.ActivateType
+			}
+			out.Themes = append(out.Themes, row)
+		}
+	}
+	// Footer counts mirror the human path: filtered theme set if a
+	// category was requested, full set otherwise.
+	footerThemes := themes
+	if listCategory != "" {
+		footerThemes = nil
+		for _, t := range themes {
+			if t.Theme.Category == listCategory {
+				footerThemes = append(footerThemes, t)
+			}
+		}
+	}
+	out.Counts.Total = len(footerThemes)
+	for _, t := range footerThemes {
+		if _, ok := s.Get(t.Theme.Slug); ok {
+			out.Counts.Installed++
+		}
+	}
+
+	enc := json.NewEncoder(ui.W)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
 
 func renderRow(t manifest.Theme, s *state.Store) string {
