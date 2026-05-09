@@ -209,63 +209,38 @@ func TestUpdateLabel(t *testing.T) {
 	}
 }
 
-// ----- uninstallDoneMessage (cmd/uninstall.go) -----
+// ----- installDoneMessage / uninstallDoneMessage (cmd) -----
 //
-// Tool-specific guidance: terminals + GUI editors need a relaunch hint;
-// prompt managers need a shell restart; bat/delta/git diff just work
-// on next invocation so they fall through to the default "Reverted."
-//
-// Theme.Name must start with "Slatewave for " for the slugs that quote
-// the suffix back to the user — uninstallDoneMessage slices the prefix
-// off via len("Slatewave for ").
-func TestUninstallDoneMessage(t *testing.T) {
-	cases := []struct {
-		slug string
-		name string
-		want string
-	}{
-		{"ghostty", "Slatewave for Ghostty", "Reverted. Quit and relaunch Ghostty to see your original colors — running terminals keep the loaded theme in memory."},
-		{"alacritty", "Slatewave for Alacritty", "Reverted. Quit and relaunch Alacritty to see your original colors — running terminals keep the loaded theme in memory."},
-		{"wezterm", "Slatewave for WezTerm", "Reverted. Quit and relaunch WezTerm to see your original colors — running terminals keep the loaded theme in memory."},
-		{"iterm2", "Slatewave for iTerm2", "Reverted. Quit and relaunch iTerm2 to see your original colors — running terminals keep the loaded theme in memory."},
-		{"kitty", "Slatewave for kitty", "Reverted. Quit and relaunch kitty to see your original colors — running terminals keep the loaded theme in memory."},
-		{"btop", "Slatewave for btop", "Reverted. Quit and relaunch `btop` if it's open."},
-		{"oh-my-posh", "Slatewave for oh-my-posh", "Reverted. Restart your shell or `source` your rc file."},
-		{"starship", "Slatewave for starship", "Reverted. Restart your shell or `source` your rc file."},
-		{"powerlevel10k", "Slatewave for Powerlevel10k", "Reverted. Restart your shell or `source` your rc file."},
-		{"obsidian", "Slatewave for Obsidian", "Reverted. Restart Obsidian if it's open — the theme is loaded once at launch."},
-		{"logseq", "Slatewave for Logseq", "Reverted. Restart Logseq if it's open — the theme is loaded once at launch."},
-		{"markedit", "Slatewave for MarkEdit", "Reverted. Restart MarkEdit if it's open — the theme is loaded once at launch."},
-		{"vscode", "Slatewave for VSCode", "Reverted. VSCode picks up the change immediately."},
-		{"bat", "Slatewave for bat", "Reverted."}, // default branch — bat re-reads config per invocation
+// Both helpers are now thin passthroughs: read manifest field, fall
+// back to a generic default if empty. Per-theme strings live in the
+// embedded *.toml manifests; the install/uninstall code shouldn't be
+// the one keeping that data in sync.
+
+func TestInstallDoneMessage_PassthroughAndDefault(t *testing.T) {
+	custom := manifest.Theme{
+		Install: manifest.Install{DoneMessage: "bat picks up the new theme on its next invocation."},
 	}
-	for _, c := range cases {
-		th := manifest.Theme{Theme: manifest.Meta{Slug: c.slug, Name: c.name}}
-		got := uninstallDoneMessage(th)
-		if got != c.want {
-			t.Errorf("uninstallDoneMessage(%q) = %q, want %q", c.slug, got, c.want)
-		}
+	if got := installDoneMessage(custom); got != custom.Install.DoneMessage {
+		t.Errorf("manifest done_message not echoed: got %q, want %q", got, custom.Install.DoneMessage)
+	}
+
+	bare := manifest.Theme{}
+	if got := installDoneMessage(bare); got != "Slatewave is installed." {
+		t.Errorf("default fallback = %q, want %q", got, "Slatewave is installed.")
 	}
 }
 
-func TestDoneMessage(t *testing.T) {
-	cases := []struct {
-		slug string
-		want string
-	}{
-		{"bat", "bat picks up the new theme on its next invocation."},
-		{"btop", "Launch `btop` to see Slatewave applied."},
-		{"delta", "Run a `git diff` in any repo to see Slatewave applied."},
-		{"oh-my-posh", "Restart your shell or `source` your rc file."},
-		{"starship", "Restart your shell or `source` your rc file."},
-		{"powerlevel10k", "Restart your shell or `source` your rc file."},
-		{"random-slug", "Slatewave is installed."}, // default branch
+func TestUninstallDoneMessage_PassthroughAndDefault(t *testing.T) {
+	custom := manifest.Theme{
+		Uninstall: manifest.Uninstall{DoneMessage: "Reverted. VSCode picks up the change immediately."},
 	}
-	for _, c := range cases {
-		got := doneMessage(manifest.Theme{Theme: manifest.Meta{Slug: c.slug}})
-		if got != c.want {
-			t.Errorf("doneMessage(%q) = %q, want %q", c.slug, got, c.want)
-		}
+	if got := uninstallDoneMessage(custom); got != custom.Uninstall.DoneMessage {
+		t.Errorf("manifest uninstall.done_message not echoed: got %q, want %q", got, custom.Uninstall.DoneMessage)
+	}
+
+	bare := manifest.Theme{}
+	if got := uninstallDoneMessage(bare); got != "Reverted." {
+		t.Errorf("default fallback = %q, want %q", got, "Reverted.")
 	}
 }
 
