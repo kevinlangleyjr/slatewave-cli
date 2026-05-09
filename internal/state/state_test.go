@@ -1,9 +1,11 @@
 package state
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -156,5 +158,80 @@ func TestStore_PutNilMapDoesNotPanic(t *testing.T) {
 	s.Put(Record{Slug: "foo"})
 	if _, ok := s.Get("foo"); !ok {
 		t.Error("Put on nil-map Store didn't initialize")
+	}
+}
+
+// Concurrency: N goroutines each Update by adding their own record.
+// Without the file lock the load → mutate → save cycle would race
+// (each goroutine loads the same starting state, adds its record,
+// saves; last writer wins, every other record gets clobbered). With
+// the lock, every record must survive.
+func TestUpdate_ConcurrentInvocationsDontClobber(t *testing.T) {
+	stateInTempHome(t)
+
+	const n = 10
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			slug := fmt.Sprintf("theme-%02d", i)
+			err := Update(func(s *Store) error {
+				s.Put(Record{Slug: slug, InstalledAt: time.Now().UTC(), InstallType: "curl"})
+				return nil
+			})
+			if err != nil {
+				t.Errorf("Update for %s: %v", slug, err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	final, err := Load()
+	if err != nil {
+		t.Fatalf("Load after concurrent Updates: %v", err)
+	}
+	if got := len(final.Records); got != n {
+		t.Errorf("after %d concurrent Updates: %d records, want %d (lock isn't serializing RMW)", n, got, n)
+	}
+	for i := 0; i < n; i++ {
+		slug := fmt.Sprintf("theme-%02d", i)
+		if _, ok := final.Get(slug); !ok {
+			t.Errorf("record %s missing — clobbered by concurrent save", slug)
+		}
+	}
+}
+
+// Update runs fn under the lock, then saves. A non-nil error from fn
+// must abort without saving so a failed mutation doesn't half-commit.
+func TestUpdate_FnErrorSkipsSave(t *testing.T) {
+	stateInTempHome(t)
+
+	if err := Update(func(s *Store) error {
+		s.Put(Record{Slug: "seeded"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	wantErr := fmt.Errorf("user mutation failed")
+	gotErr := Update(func(s *Store) error {
+		s.Put(Record{Slug: "should-not-persist"})
+		return wantErr
+	})
+	if gotErr != wantErr {
+		t.Errorf("Update returned %v, want %v", gotErr, wantErr)
+	}
+
+	final, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := final.Get("should-not-persist"); ok {
+		t.Error("Update saved despite fn returning an error")
+	}
+	if _, ok := final.Get("seeded"); !ok {
+		t.Error("seeded record disappeared")
 	}
 }

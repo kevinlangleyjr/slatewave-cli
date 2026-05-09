@@ -257,9 +257,11 @@ func updateOne(slug string, suppressFinal bool) error {
 	// Bump the install timestamp so `slatewave status` reflects the
 	// last refresh.
 	if !updateDryRun {
-		rec.InstalledAt = time.Now().UTC()
-		s.Put(rec)
-		if err := s.Save(); err != nil {
+		if err := state.Update(func(s *state.Store) error {
+			rec.InstalledAt = time.Now().UTC()
+			s.Put(rec)
+			return nil
+		}); err != nil {
 			return fmt.Errorf("save state: %w", err)
 		}
 	}

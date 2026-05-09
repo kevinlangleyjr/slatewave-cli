@@ -266,12 +266,10 @@ func installOne(slug string, suppressFinal bool) error {
 	}
 
 	if !installDryRun {
-		s, err := state.Load()
-		if err != nil {
-			return fmt.Errorf("load state: %w", err)
-		}
-		s.Put(rec)
-		if err := s.Save(); err != nil {
+		if err := state.Update(func(s *state.Store) error {
+			s.Put(rec)
+			return nil
+		}); err != nil {
 			return fmt.Errorf("save state: %w", err)
 		}
 	}
