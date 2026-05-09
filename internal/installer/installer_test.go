@@ -340,6 +340,47 @@ func TestUninstall_RestoreUsesBackupFileMode(t *testing.T) {
 	}
 }
 
+// If the same activation line ended up in the rc file twice (a bug in
+// an older slatewave version, or a manual paste from the docs while
+// our state record was already there), uninstall must remove every
+// occurrence — not just the first. A leftover duplicate keeps the
+// theme sourced and survives `slatewave list` reconcile.
+func TestRemoveShellRCLine_RemovesAllOccurrences(t *testing.T) {
+	rc := filepath.Join(t.TempDir(), ".zshrc")
+	body := `# user prelude
+
+# slatewave
+export BAT_THEME=Slatewave
+
+alias gs='git status'
+
+# slatewave
+export BAT_THEME=Slatewave
+
+# user epilogue
+`
+	if err := os.WriteFile(rc, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeShellRCLine(rc, "export BAT_THEME=Slatewave", "# slatewave", Options{}); err != nil {
+		t.Fatalf("removeShellRCLine: %v", err)
+	}
+	got, _ := os.ReadFile(rc)
+	gotStr := string(got)
+
+	if strings.Contains(gotStr, "BAT_THEME") {
+		t.Errorf("BAT_THEME line still present (only first occurrence removed):\n%s", gotStr)
+	}
+	if strings.Contains(gotStr, "# slatewave") {
+		t.Errorf("# slatewave marker still present after removal:\n%s", gotStr)
+	}
+	for _, want := range []string{"# user prelude", "alias gs='git status'", "# user epilogue"} {
+		if !strings.Contains(gotStr, want) {
+			t.Errorf("user content %q stripped:\n%s", want, gotStr)
+		}
+	}
+}
+
 // `git config --unset-all <name> <value-pattern>` treats the value as
 // a regex. Paths contain `.`, which would match any character — without
 // the regexp.QuoteMeta + ^…$ anchors we'd risk removing an unrelated
