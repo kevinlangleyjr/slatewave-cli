@@ -117,14 +117,19 @@ func Uninstall(rec state.Record, t manifest.Theme, opts Options) error {
 	return nil
 }
 
-// removeShellRCLine removes exactly one occurrence of `line` from
-// `file`. Idempotent — silently no-ops if the line isn't there.
+// removeShellRCLine removes every occurrence of `line` from `file`.
+// Idempotent — silently no-ops if the line isn't there.
 //
 // `marker` is the exact trimmed text of the comment we wrote above the
 // activation line at install time (e.g. "# slatewave" or "-- slatewave",
 // derived from the manifest's Activate.CommentPrefix). It's stripped
 // when adjacent to the target — but only when adjacent, so unrelated
 // comments matching the same style are preserved.
+//
+// Loops over every match rather than stopping at the first. A buggy
+// older version (or a manual user paste) could have landed our line
+// in the rc file twice; stopping after the first match would leave
+// the duplicate sourced forever.
 func removeShellRCLine(file, line, marker string, opts Options) error {
 	data, err := os.ReadFile(file)
 	if err != nil {
@@ -134,27 +139,33 @@ func removeShellRCLine(file, line, marker string, opts Options) error {
 		return fmt.Errorf("read %s: %w", file, err)
 	}
 	target := strings.TrimSpace(line)
-	out := make([]string, 0)
-	skipNext := false
+	inputLines := strings.Split(string(data), "\n")
+	out := make([]string, 0, len(inputLines))
 	dropped := false
-	for _, l := range strings.Split(string(data), "\n") {
-		if !dropped && strings.TrimSpace(l) == marker {
-			skipNext = true
-			continue
-		}
-		if !dropped && strings.TrimSpace(l) == target {
+	i := 0
+	for i < len(inputLines) {
+		l := inputLines[i]
+		trimmed := strings.TrimSpace(l)
+
+		// Marker followed by our exact line → drop both. Marker followed
+		// by anything else → keep (it's the user's annotation that
+		// happens to match our marker style).
+		if trimmed == marker && i+1 < len(inputLines) && strings.TrimSpace(inputLines[i+1]) == target {
+			i += 2
 			dropped = true
-			skipNext = false
 			continue
 		}
-		if skipNext {
-			// the line right after the marker wasn't ours — re-insert
-			// the marker we just skipped so the user's own annotation
-			// survives.
-			out = append(out, marker)
-			skipNext = false
+		// Naked occurrence (line without a preceding marker — shouldn't
+		// happen for installs we wrote, but covers manual pastes and
+		// older formats).
+		if trimmed == target {
+			i++
+			dropped = true
+			continue
 		}
+
 		out = append(out, l)
+		i++
 	}
 	if !dropped {
 		return nil // nothing to do
