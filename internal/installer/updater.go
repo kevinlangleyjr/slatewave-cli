@@ -3,7 +3,6 @@ package installer
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -77,12 +76,15 @@ func atomicRefetch(url, dest string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("fetch %s: %s", url, resp.Status)
 	}
+	if err := rejectHTMLContentType(url, resp.Header.Get("Content-Type")); err != nil {
+		return err
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(dest), ".slatewave-fetch-*")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }()
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
+	if err := copyCapped(tmp, resp.Body, url); err != nil {
 		_ = tmp.Close()
 		return err
 	}
