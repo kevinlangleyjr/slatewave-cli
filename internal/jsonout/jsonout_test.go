@@ -181,6 +181,13 @@ func assertGolden(t *testing.T, name string, payload any) {
 	if err != nil {
 		t.Fatalf("read golden %s (run `go test ./internal/jsonout -update` to create): %v", path, err)
 	}
+	// Normalize CRLF→LF before comparing. .gitattributes pins golden
+	// files to LF on checkout, but defense-in-depth: a Windows
+	// contributor cloning without honoring gitattributes (or a future
+	// editor "fixing" line endings) shouldn't see a confusing diff that
+	// looks byte-identical. Schema drift produces a visible content
+	// change; line-ending drift would otherwise mask as the same.
+	want = bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n"))
 	if !bytes.Equal(got, want) {
 		t.Errorf("schema drift in %s — wire shape changed. If intentional, run:\n\n  go test ./internal/jsonout -update\n\nand commit the updated golden. Diff:\n--- want\n%s\n+++ got\n%s", name, want, got)
 	}

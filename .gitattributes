@@ -2,7 +2,10 @@
 # (which clone with autocrlf=true by default) don't convert the file
 # under us. The Banner() function emits LF; comparing against a CRLF
 # golden file on disk would diff non-trivially every Windows CI run.
+# The *.golden.json line covers internal/jsonout/testdata — same
+# concern, narrower suffix that `*.golden` alone doesn't match.
 *.golden text eol=lf
+*.golden.json text eol=lf
 
 # Likewise for embedded manifests — the file content is checked in
 # byte-exact, and the registry parses with no line-ending tolerance.
