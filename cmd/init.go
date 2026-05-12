@@ -80,7 +80,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	fmt.Fprintln(out)
 	// init is the first-run wizard — no flags to thread; pass a zero
 	// installFlags so the install runs in non-dry-run, non-category mode.
-	if err := installInteractiveTUI(slugs, installFlags{}, out); err != nil {
+	if err := installInteractiveTUI(cmd.Context(), slugs, installFlags{}, out); err != nil {
 		return err
 	}
 

@@ -152,7 +152,7 @@ func TestInstallModel_DoneViewShowsSummary(t *testing.T) {
 func TestRunInstall_EmptySliceReturnsNil(t *testing.T) {
 	// The fast-exit path: no themes means no tea.Program startup, which is
 	// what we want for callers that filter to nothing.
-	if err := RunInstall(nil, InstallOptions{}); err != nil {
+	if err := RunInstall(t.Context(), nil, InstallOptions{}); err != nil {
 		t.Errorf("RunInstall(nil) = %v, want nil", err)
 	}
 }

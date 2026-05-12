@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -21,12 +22,16 @@ var ErrNoAutomatedUpdate = errors.New("no automated update for this install type
 // Dispatch goes through the same installers registry as Install. Types
 // whose impl has nil update (marketplace, manual) get ErrNoAutomatedUpdate.
 //
+// ctx aborts the subprocess (git pull, VS Code extension reinstall) so
+// the TUI fix flow and the CLI's `slatewave update` both honor Ctrl-C
+// / SIGINT mid-fetch.
+//
 // Like Install, Update applies version-aware variant overrides before
 // dispatch so a re-fetch picks the file matching the *currently*
 // installed tool version (the user may have upgraded since the last
 // install — pulling the wrong variant after that would re-introduce
 // the version-mismatch bug variants exist to fix).
-func Update(t manifest.Theme, opts Options) error {
+func Update(ctx context.Context, t manifest.Theme, opts Options) error {
 	if len(t.Install.Variants) > 0 {
 		ver, err := detectVersion(t)
 		if err != nil {
@@ -47,10 +52,10 @@ func Update(t manifest.Theme, opts Options) error {
 	if impl.update == nil {
 		return ErrNoAutomatedUpdate
 	}
-	return impl.update(t, opts)
+	return impl.update(ctx, t, opts)
 }
 
-func refetch(t manifest.Theme, opts Options) error {
+func refetch(ctx context.Context, t manifest.Theme, opts Options) error {
 	files, err := curlFiles(t)
 	if err != nil {
 		return fmt.Errorf("update %q: %w", t.Theme.Slug, err)
@@ -63,14 +68,14 @@ func refetch(t manifest.Theme, opts Options) error {
 		if err != nil {
 			return err
 		}
-		if err := fetchAtomic(f.URL, dest); err != nil {
+		if err := fetchAtomic(ctx, f.URL, dest); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func gitPull(t manifest.Theme, opts Options) error {
+func gitPull(ctx context.Context, t manifest.Theme, opts Options) error {
 	dest, err := expandPath(pickCloneDest(t))
 	if err != nil {
 		return err
@@ -81,14 +86,14 @@ func gitPull(t manifest.Theme, opts Options) error {
 	if opts.DryRun {
 		return nil
 	}
-	cmd := exec.Command("git", "-C", dest, "pull", "--ff-only")
+	cmd := exec.CommandContext(ctx, "git", "-C", dest, "pull", "--ff-only")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git pull %s: %w\n%s", dest, err, out)
 	}
 	return nil
 }
 
-func reinstallVSCodeExt(t manifest.Theme, opts Options) error {
+func reinstallVSCodeExt(ctx context.Context, t manifest.Theme, opts Options) error {
 	if t.Install.Identifier == "" {
 		return fmt.Errorf("update %q: install.identifier missing", t.Theme.Slug)
 	}
@@ -96,7 +101,7 @@ func reinstallVSCodeExt(t manifest.Theme, opts Options) error {
 		return nil
 	}
 	cli := VSCodeExtCLI(t)
-	cmd := exec.Command(cli, "--install-extension", t.Install.Identifier, "--force")
+	cmd := exec.CommandContext(ctx, cli, "--install-extension", t.Install.Identifier, "--force")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%s --install-extension --force: %w\n%s", cli, err, out)
 	}

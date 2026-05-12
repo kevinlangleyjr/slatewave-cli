@@ -244,7 +244,9 @@ func PickFixes(fixes []Fix) ([]Fix, error) {
 }
 
 // RunFix executes each fix serially and renders progress as a live TUI. Returns nil if every fix succeeded, or a non-nil error reflecting the *count* of failures so the caller can summarize.
-func RunFix(fixes []Fix, opts FixOptions) error {
+//
+// ctx threads into the update / uninstall subprocesses spawned by each fix so a SIGINT at the CLI layer kills the in-flight child. The TUI's own Ctrl-C handling (KeyCtrlC → tea.Quit) is wired in a follow-up commit.
+func RunFix(ctx context.Context, fixes []Fix, opts FixOptions) error {
 	if len(fixes) == 0 {
 		return nil
 	}
@@ -257,7 +259,7 @@ func RunFix(fixes []Fix, opts FixOptions) error {
 
 	go func() {
 		for _, f := range fixes {
-			runFixPipeline(p, f, opts)
+			runFixPipeline(ctx, p, f, opts)
 		}
 		p.Send(fixCompleteMsg{})
 	}()
@@ -279,10 +281,10 @@ func RunFix(fixes []Fix, opts FixOptions) error {
 	return nil
 }
 
-func runFixPipeline(p *tea.Program, f Fix, opts FixOptions) {
+func runFixPipeline(ctx context.Context, p *tea.Program, f Fix, opts FixOptions) {
 	switch f.Kind {
 	case FixUpdate:
-		runUpdateFix(p, f, opts)
+		runUpdateFix(ctx, p, f, opts)
 	case FixUninstall:
 		runUninstallFix(p, f, opts)
 	case FixDropOrphan:
@@ -291,16 +293,16 @@ func runFixPipeline(p *tea.Program, f Fix, opts FixOptions) {
 }
 
 // runUpdateFix mirrors cmd/update.go's updateOne body so a stale theme gets the same asset refresh + post-hook + timestamp bump as a manual `slatewave update`.
-func runUpdateFix(p *tea.Program, f Fix, opts FixOptions) {
+func runUpdateFix(ctx context.Context, p *tea.Program, f Fix, opts FixOptions) {
 	slug := f.Slug
 	p.Send(fixProgressMsg{slug: slug, state: fixRunning, step: "refreshing assets"})
-	if err := installer.Update(f.Theme, installer.Options{DryRun: opts.DryRun}); err != nil {
+	if err := installer.Update(ctx, f.Theme, installer.Options{DryRun: opts.DryRun}); err != nil {
 		p.Send(fixProgressMsg{slug: slug, state: fixFailed, err: err})
 		return
 	}
 	if f.Theme.Install.Post != nil && !opts.DryRun {
 		p.Send(fixProgressMsg{slug: slug, state: fixRunning, step: f.Theme.Install.Post.Description})
-		if err := shell.RunInherit(context.Background(), f.Theme.Install.Post.Command); err != nil {
+		if err := shell.RunInherit(ctx, f.Theme.Install.Post.Command); err != nil {
 			p.Send(fixProgressMsg{slug: slug, state: fixFailed, err: fmt.Errorf("post-hook: %w", err)})
 			return
 		}

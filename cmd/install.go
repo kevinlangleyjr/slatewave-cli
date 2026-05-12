@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -83,20 +84,21 @@ at the end.`,
 		//   bulk + TTY (default)   → TUI dashboard.
 		//   bulk + no TTY          → streaming summary.
 		//   single (no bulk flag)  → streaming, single-theme pipeline.
+		ctx := cmd.Context()
 		switch {
 		case f.Interactive:
-			return installInteractiveTUI(slugs, f, out)
+			return installInteractiveTUI(ctx, slugs, f, out)
 		case f.NoInteractive:
 			if !bulk {
-				return installOne(slugs[0], false, f, out)
+				return installOne(ctx, slugs[0], false, f, out)
 			}
-			return installBulk(slugs, f, out)
+			return installBulk(ctx, slugs, f, out)
 		case !bulk:
-			return installOne(slugs[0], false, f, out)
+			return installOne(ctx, slugs[0], false, f, out)
 		case isTerminal():
-			return installInteractiveTUI(slugs, f, out)
+			return installInteractiveTUI(ctx, slugs, f, out)
 		default:
-			return installBulk(slugs, f, out)
+			return installBulk(ctx, slugs, f, out)
 		}
 	},
 }
@@ -148,7 +150,9 @@ func noManifestError(slug string) error {
 }
 
 // installInteractiveTUI runs the install pipeline through the bubbletea dashboard. It loads each slug's manifest, drops themes already recorded in state (matching installBulk's skip behavior), and hands the rest to tui.RunInstall — which renders live progress and surfaces failures in the summary line rather than per-theme errors.
-func installInteractiveTUI(slugs []string, f installFlags, out io.Writer) error {
+//
+// ctx flows into tui.RunInstall so a Ctrl-C inside the dashboard cancels the in-flight install subprocess (git clone, post-hook) instead of orphaning it. Currently a no-op until tui.RunInstall wires the cancel — the TUI layer is the next commit.
+func installInteractiveTUI(ctx context.Context, slugs []string, f installFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -183,7 +187,7 @@ func installInteractiveTUI(slugs []string, f installFlags, out io.Writer) error 
 		return nil
 	}
 
-	runErr := tui.RunInstall(themes, tui.InstallOptions{DryRun: f.DryRun})
+	runErr := tui.RunInstall(ctx, themes, tui.InstallOptions{DryRun: f.DryRun})
 	// Print post-install instructions for every theme we tried, after the
 	// dashboard exits. Static-mode installOne prints these inline; TUI mode
 	// can't (multi-line guidance won't fit in a one-row dashboard) so we
@@ -217,7 +221,7 @@ func printPostInstallInstructions(themes []manifest.Theme, out io.Writer) {
 // installBulk runs installOne for each slug, skipping themes already
 // recorded in state and continuing past individual failures so one
 // broken theme doesn't bail the rest of the run.
-func installBulk(slugs []string, f installFlags, out io.Writer) error {
+func installBulk(ctx context.Context, slugs []string, f installFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -233,7 +237,7 @@ func installBulk(slugs []string, f installFlags, out io.Writer) error {
 		if i > 0 {
 			fmt.Fprintln(out)
 		}
-		if err := installOne(slug, true, f, out); err != nil {
+		if err := installOne(ctx, slug, true, f, out); err != nil {
 			ui.Errorf(out, "%s: %v", slug, err)
 			failed++
 			continue
@@ -260,7 +264,11 @@ func installBulk(slugs []string, f installFlags, out io.Writer) error {
 //
 // suppressFinal — when true (bulk mode), skip the per-theme final
 // "Done." line so the bulk caller can render its own summary.
-func installOne(slug string, suppressFinal bool, f installFlags, out io.Writer) error {
+//
+// ctx threads into installer.Install so a SIGINT (Ctrl-C from the
+// streaming CLI) kills the in-flight git clone / post-hook instead of
+// orphaning it.
+func installOne(ctx context.Context, slug string, suppressFinal bool, f installFlags, out io.Writer) error {
 	t, err := manifest.LoadOne(slug)
 	if err != nil {
 		return noManifestError(slug)
@@ -283,7 +291,7 @@ func installOne(slug string, suppressFinal bool, f installFlags, out io.Writer) 
 	}
 
 	done := ui.StepStart(out, installLabel(t))
-	rec, err := installer.Install(t, opts)
+	rec, err := installer.Install(ctx, t, opts)
 	if err != nil {
 		done(err)
 		return err

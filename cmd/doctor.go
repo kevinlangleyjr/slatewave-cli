@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -113,7 +114,7 @@ the report or run ` + "`slatewave list`" + ` to silently reconcile stale + orpha
 
 		if f.Fix {
 			fmt.Fprintln(out)
-			return runDoctorFix(rows, f, out)
+			return runDoctorFix(cmd.Context(), rows, f, out)
 		}
 		return nil
 	},
@@ -177,7 +178,7 @@ func doctorStatusString(s doctorStatus) string {
 }
 
 // runDoctorFix maps fixable doctor rows to tui.Fix entries, hands them to the picker so the user can confirm or deselect, then runs the dashboard. Healthy rows are filtered out before the picker — there's nothing to fix.
-func runDoctorFix(rows []doctorRow, f doctorFlags, out io.Writer) error {
+func runDoctorFix(ctx context.Context, rows []doctorRow, f doctorFlags, out io.Writer) error {
 	fixes := buildFixes(rows)
 	if len(fixes) == 0 {
 		ui.Done(out, "Nothing to fix.")
@@ -198,7 +199,7 @@ func runDoctorFix(rows []doctorRow, f doctorFlags, out io.Writer) error {
 	}
 
 	fmt.Fprintln(out)
-	return tui.RunFix(selected, tui.FixOptions{DryRun: f.DryRun})
+	return tui.RunFix(ctx, selected, tui.FixOptions{DryRun: f.DryRun})
 }
 
 // buildFixes converts diagnose() rows into tui.Fix entries. Healthy rows are dropped. For stale and missing-tool rows we re-load the manifest so the fix pipeline has it (avoids a second LoadOne in the dashboard); orphan rows ship without a manifest since that's the diagnosis.

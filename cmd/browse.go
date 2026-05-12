@@ -70,7 +70,7 @@ func runBrowse(cmd *cobra.Command, _ []string) error {
 		// Browser-driven installs are inherently interactive — the user
 		// just picked a row in a TUI. Pass a default-zero installFlags;
 		// dry-run / category etc. don't apply when the choice is single.
-		return installInteractiveTUI([]string{action.Slug}, installFlags{}, out)
+		return installInteractiveTUI(cmd.Context(), []string{action.Slug}, installFlags{}, out)
 	case tui.BrowseUninstall:
 		fmt.Fprintln(out)
 		// Browser-driven uninstalls don't expose --dry-run / --category

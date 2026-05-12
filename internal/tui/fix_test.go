@@ -118,7 +118,7 @@ func TestFixModel_DoneViewShowsSummary(t *testing.T) {
 }
 
 func TestRunFix_EmptySliceReturnsNil(t *testing.T) {
-	if err := RunFix(nil, FixOptions{}); err != nil {
+	if err := RunFix(t.Context(), nil, FixOptions{}); err != nil {
 		t.Errorf("RunFix(nil) = %v, want nil", err)
 	}
 }
