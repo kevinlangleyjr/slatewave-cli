@@ -51,6 +51,17 @@ type installCompleteMsg struct{}
 // the background and pushes progressMsg via tea.Program.Send; Update
 // applies them to the matching row, View re-renders.
 //
+// Concurrency contract: the goroutine in RunInstall only ever
+// communicates with this model by sending progressMsg through
+// p.Send — it never writes to rows / rowMap / row fields directly.
+// Update is the sole writer of row state and runs on bubbletea's
+// event loop. tea.Program.Send synchronizes through bubbletea's
+// internal channel, so the messages happen-before the corresponding
+// Update call and there's no race on the shared *installRow pointers.
+// Future contributors: don't "optimize" by writing rowMap[slug].state
+// from the goroutine — that's the failure mode this contract exists
+// to forbid.
+//
 // cancel is the CancelFunc paired with the context that flows into
 // runInstallPipeline. KeyCtrlC calls it before returning tea.Quit so
 // the in-flight subprocess (git clone, post-hook) is killed instead of

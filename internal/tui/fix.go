@@ -72,6 +72,15 @@ type fixProgressMsg struct {
 
 type fixCompleteMsg struct{}
 
+// fixModel mirrors installModel's structure and obeys the same
+// concurrency contract: the worker goroutine in RunFix only ever
+// communicates with this model through fixProgressMsg / fixCompleteMsg
+// sent via p.Send — it never touches rows / rowMap / row fields
+// directly. Update is the sole writer of row state. tea.Program.Send
+// synchronizes through bubbletea's internal channel, so message sends
+// happen-before the corresponding Update call and the shared *fixRow
+// pointers are safe without a mutex. Future contributors: don't write
+// rowMap[slug].state from the goroutine.
 type fixModel struct {
 	rows    []*fixRow
 	rowMap  map[string]*fixRow
