@@ -76,6 +76,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: make smoke
 
+      - name: validate-manifests (schema check)
+        # Linux-only — the target is a Go test that round-trips every
+        # embedded manifest through TOML→JSON and validates against
+        # schemas/manifest.schema.json. Pure Go, but the signal is
+        # platform-independent so once per CI run is enough.
+        if: matrix.os == 'ubuntu-latest'
+        run: make validate-manifests
+
   lint:
     name: lint
     runs-on: ubuntu-latest
