@@ -31,6 +31,16 @@ func writeFileLogged(path string, data []byte, mode os.FileMode) error {
 	return os.WriteFile(path, data, mode)
 }
 
+// mkdirLogged wraps os.MkdirAll with a verbose log line. The activator
+// creates parent directories at four sites (ini-key, shell-rc, toml-
+// import, yaml-set), all with the same 0o755 — wrap once so a `-v`
+// user sees every directory that gets created, not just the file
+// writes that follow.
+func mkdirLogged(dir string) error {
+	verbose.Log("mkdir: %s (mode %o)", dir, 0o755)
+	return os.MkdirAll(dir, 0o755)
+}
+
 // Options controls activator behavior.
 type Options struct {
 	DryRun bool
@@ -129,7 +139,7 @@ func doIniKey(t manifest.Theme, rec *state.Record, opts Options) error {
 
 	mode := preservedMode(file)
 	if !fileExists {
-		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		if err := mkdirLogged(filepath.Dir(file)); err != nil {
 			return fmt.Errorf("create parent dir: %w", err)
 		}
 		rec.CreatedPaths = append(rec.CreatedPaths, file)
@@ -249,7 +259,7 @@ func doShellRC(t manifest.Theme, rec *state.Record, opts Options) error {
 	// splicing out a single line.
 	fileEmpty := len(strings.TrimSpace(string(data))) == 0
 	if fileEmpty && t.Activate.Scaffold != "" {
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		if err := mkdirLogged(filepath.Dir(target)); err != nil {
 			return fmt.Errorf("create parent dir: %w", err)
 		}
 		content := t.Activate.Scaffold
@@ -465,7 +475,7 @@ func doTOMLImport(t manifest.Theme, rec *state.Record, opts Options) error {
 	}
 
 	// Make the parent dir if we're creating the file fresh.
-	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+	if err := mkdirLogged(filepath.Dir(file)); err != nil {
 		return fmt.Errorf("create parent dir: %w", err)
 	}
 
@@ -578,7 +588,7 @@ func doYAMLSet(t manifest.Theme, rec *state.Record, opts Options) error {
 
 	mode := preservedMode(file)
 	if !fileExists {
-		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		if err := mkdirLogged(filepath.Dir(file)); err != nil {
 			return fmt.Errorf("create parent dir: %w", err)
 		}
 		rec.CreatedPaths = append(rec.CreatedPaths, file)
@@ -757,6 +767,7 @@ func expandPath(p string) (string, error) {
 func backupFile(file string) (string, error) {
 	ts := time.Now().UTC().Format("20060102T150405")
 	backup := fmt.Sprintf("%s.slatewave.%s.bak", file, ts)
+	verbose.Log("backup: %s → %s", file, backup)
 	src, err := os.ReadFile(file)
 	if err != nil {
 		return "", fmt.Errorf("read for backup: %w", err)
