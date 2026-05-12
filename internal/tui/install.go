@@ -208,7 +208,22 @@ func RunInstall(ctx context.Context, themes []manifest.Theme, opts InstallOption
 	p := tea.NewProgram(m)
 
 	go func() {
+		// Track which slug is in-flight so a panic deep in the install
+		// pipeline surfaces in the dashboard row instead of silently
+		// hanging the program. Without this, a nil-pointer deref in any
+		// dispatcher would kill the goroutine before installCompleteMsg
+		// fires — Update never sees a quit, the user is stuck.
+		var currentSlug string
+		defer func() {
+			if r := recover(); r != nil {
+				if currentSlug != "" {
+					p.Send(progressMsg{slug: currentSlug, state: rowFailed, err: fmt.Errorf("panic: %v", r)})
+				}
+				p.Send(installCompleteMsg{})
+			}
+		}()
 		for _, th := range themes {
+			currentSlug = th.Theme.Slug
 			runInstallPipeline(runCtx, p, th, opts)
 		}
 		p.Send(installCompleteMsg{})

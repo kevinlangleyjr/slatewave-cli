@@ -33,6 +33,12 @@ type DetectResult struct {
 // init` to figure out which themes are even worth offering — there's
 // no point asking the user about Slatewave for btop if they don't
 // have btop installed.
+//
+// A panic inside one worker (a manifest with a malformed detect_command
+// hitting an unguarded code path) is recovered so it can't crash the
+// whole CLI. The misbehaving theme falls back to "tool not present" —
+// same observable result the user would see for any other detect
+// failure — and the rest of the sweep continues.
 func DetectAll(themes []manifest.Theme, installed map[string]bool) []DetectResult {
 	out := make([]DetectResult, len(themes))
 	var wg sync.WaitGroup
@@ -41,6 +47,14 @@ func DetectAll(themes []manifest.Theme, installed map[string]bool) []DetectResul
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					out[i] = DetectResult{
+						Theme:     th,
+						Installed: installed[th.Theme.Slug],
+					}
+				}
+			}()
 			out[i] = DetectResult{
 				Theme:     th,
 				Present:   detectOne(th),
