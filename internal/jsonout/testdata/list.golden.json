@@ -1,0 +1,23 @@
+{
+  "themes": [
+    {
+      "slug": "bat",
+      "name": "Slatewave for bat",
+      "category": "terminal",
+      "installed": true,
+      "installed_at": "2026-05-09T14:32:01Z",
+      "install_type": "curl",
+      "activate_type": "ini-key"
+    },
+    {
+      "slug": "ghostty",
+      "name": "Slatewave for ghostty",
+      "category": "terminal",
+      "installed": false
+    }
+  ],
+  "counts": {
+    "total": 2,
+    "installed": 1
+  }
+}

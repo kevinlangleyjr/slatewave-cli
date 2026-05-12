@@ -1,0 +1,27 @@
+{
+  "slug": "bat",
+  "name": "Slatewave for bat",
+  "category": "terminal",
+  "supported_os": [
+    "darwin",
+    "linux",
+    "windows"
+  ],
+  "source_url": "https://getslatewave.com/themes/bat",
+  "install": {
+    "type": "curl",
+    "url": "https://example.test/themes/bat/slatewave.tmTheme",
+    "dest": "~/.config/bat/themes/slatewave.tmTheme",
+    "done_message": "Run `bat cache --build` then `bat --theme=Slatewave` to verify."
+  },
+  "activate": {
+    "type": "ini-key",
+    "file": "~/.config/bat/config",
+    "key": "--theme",
+    "value": "Slatewave"
+  },
+  "verify": {
+    "command": "bat --list-themes",
+    "expect": "Slatewave"
+  }
+}

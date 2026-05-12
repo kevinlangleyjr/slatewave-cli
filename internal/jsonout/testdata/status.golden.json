@@ -1,0 +1,34 @@
+{
+  "themes": [
+    {
+      "slug": "bat",
+      "name": "Slatewave for bat",
+      "installed_at": "2026-05-09T14:32:01Z",
+      "install_type": "curl",
+      "activate_type": "ini-key",
+      "created_paths": [
+        "/home/user/.config/bat/themes/slatewave.tmTheme"
+      ],
+      "appended_line": {
+        "file": "/home/user/.config/bat/config",
+        "line": "--theme=Slatewave"
+      },
+      "backups": [
+        {
+          "original": "/home/user/.config/bat/config",
+          "path": "/home/user/.config/bat/config.slatewave.1715266321.bak"
+        }
+      ]
+    },
+    {
+      "slug": "btop",
+      "name": "Slatewave for btop",
+      "installed_at": "2026-05-09T14:32:01Z",
+      "install_type": "curl",
+      "activate_type": "ini-key",
+      "created_paths": [
+        "/home/user/.config/btop/themes/slatewave.theme"
+      ]
+    }
+  ]
+}
