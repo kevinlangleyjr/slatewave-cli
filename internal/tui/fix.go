@@ -270,7 +270,21 @@ func RunFix(ctx context.Context, fixes []Fix, opts FixOptions) error {
 	p := tea.NewProgram(m)
 
 	go func() {
+		// Same shape as RunInstall's worker: track the in-flight slug
+		// and recover() so a panic in installer.Update / installer.Uninstall
+		// surfaces on the row instead of leaving the dashboard spinning
+		// forever waiting for fixCompleteMsg.
+		var currentSlug string
+		defer func() {
+			if r := recover(); r != nil {
+				if currentSlug != "" {
+					p.Send(fixProgressMsg{slug: currentSlug, state: fixFailed, err: fmt.Errorf("panic: %v", r)})
+				}
+				p.Send(fixCompleteMsg{})
+			}
+		}()
 		for _, f := range fixes {
+			currentSlug = f.Slug
 			runFixPipeline(runCtx, p, f, opts)
 		}
 		p.Send(fixCompleteMsg{})
