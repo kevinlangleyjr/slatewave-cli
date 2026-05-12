@@ -2,8 +2,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -86,8 +89,21 @@ func emitUpgradeNag() {
 }
 
 // Execute runs the cobra root. main.go calls this.
+//
+// A signal-aware context is plumbed into the command tree so SIGINT
+// (Ctrl-C from a streaming CLI run) and SIGTERM cancel anything reading
+// cmd.Context() — most importantly the installer's git clone /
+// post-hook / VS Code extension shell-outs, which propagate the cancel
+// to the child process instead of orphaning it.
+//
+// In TUI mode bubbletea grabs raw stdin and Ctrl-C arrives as a
+// KeyMsg, not a signal — the TUI's own KeyCtrlC handler is responsible
+// for cancelling its install context. Both layers are needed; this one
+// covers the streaming path.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

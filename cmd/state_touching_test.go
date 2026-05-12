@@ -316,7 +316,7 @@ func TestInstallOne_PersistsRecordOnSuccess(t *testing.T) {
 	env := setupCmdEnv(t)
 	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
 
-	if err := installOne("okayish", false, installFlags{}, env.out); err != nil {
+	if err := installOne(t.Context(), "okayish", false, installFlags{}, env.out); err != nil {
 		t.Fatalf("installOne: %v", err)
 	}
 
@@ -341,7 +341,7 @@ func TestInstallOne_SuppressFinalSkipsDoneLine(t *testing.T) {
 	env := setupCmdEnv(t)
 	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
 
-	if err := installOne("okayish", true, installFlags{}, env.out); err != nil {
+	if err := installOne(t.Context(), "okayish", true, installFlags{}, env.out); err != nil {
 		t.Fatalf("installOne suppressFinal: %v", err)
 	}
 	if strings.Contains(env.out.String(), "Done.") {
@@ -353,7 +353,7 @@ func TestInstallOne_DryRunSkipsState(t *testing.T) {
 	env := setupCmdEnv(t)
 	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
 
-	if err := installOne("okayish", false, installFlags{DryRun: true}, env.out); err != nil {
+	if err := installOne(t.Context(), "okayish", false, installFlags{DryRun: true}, env.out); err != nil {
 		t.Fatalf("installOne dry-run: %v", err)
 	}
 	s, _ := state.Load()
@@ -369,7 +369,7 @@ func TestInstallOne_UnknownSlugReturnsNoManifestError(t *testing.T) {
 	env := setupCmdEnv(t)
 	env.useManifestDir(t, map[string]string{})
 
-	err := installOne("ghost", false, installFlags{}, env.out)
+	err := installOne(t.Context(), "ghost", false, installFlags{}, env.out)
 	if err == nil {
 		t.Fatal("installOne for missing slug returned nil err")
 	}
@@ -391,7 +391,7 @@ func TestInstallOne_BlocksUnsupportedOS(t *testing.T) {
 	// fixture that explicitly defaults to ["darwin", "linux"].
 	env.useManifestDir(t, map[string]string{"okayish": manifestUnixOnlyHealthy})
 
-	err := installOne("okayish", false, installFlags{}, env.out)
+	err := installOne(t.Context(), "okayish", false, installFlags{}, env.out)
 	if err == nil {
 		t.Fatal("installOne on unsupported OS returned nil err")
 	}
@@ -421,7 +421,7 @@ func TestInstallBulk_SkipsAlreadyInstalledAndCounts(t *testing.T) {
 	})
 	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
 
-	if err := installBulk([]string{"okayish", "second"}, installFlags{}, env.out); err != nil {
+	if err := installBulk(t.Context(), []string{"okayish", "second"}, installFlags{}, env.out); err != nil {
 		t.Fatalf("installBulk: %v", err)
 	}
 
@@ -439,7 +439,7 @@ func TestInstallBulk_AllAlreadyInstalledReportsNothingToInstall(t *testing.T) {
 	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
 	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
 
-	if err := installBulk([]string{"okayish"}, installFlags{}, env.out); err != nil {
+	if err := installBulk(t.Context(), []string{"okayish"}, installFlags{}, env.out); err != nil {
 		t.Fatalf("installBulk: %v", err)
 	}
 	if !strings.Contains(env.out.String(), "Nothing to install") {
@@ -558,7 +558,7 @@ func TestUpdateOne_ManualReturnsNoAutomatedUpdate(t *testing.T) {
 	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
 	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
 
-	err := updateOne("okayish", false, updateFlags{}, env.out)
+	err := updateOne(t.Context(), "okayish", false, updateFlags{}, env.out)
 	if err == nil {
 		t.Fatal("updateOne for manual install returned nil err")
 	}
@@ -571,7 +571,7 @@ func TestUpdateOne_NotInstalledErrors(t *testing.T) {
 	env := setupCmdEnv(t)
 	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
 
-	err := updateOne("okayish", false, updateFlags{}, env.out)
+	err := updateOne(t.Context(), "okayish", false, updateFlags{}, env.out)
 	if err == nil || !strings.Contains(err.Error(), "is not installed") {
 		t.Errorf("updateOne for not-installed slug: err = %v, want `is not installed`", err)
 	}
@@ -581,7 +581,7 @@ func TestUpdateOne_UnknownSlugErrors(t *testing.T) {
 	env := setupCmdEnv(t)
 	env.useManifestDir(t, map[string]string{})
 
-	err := updateOne("ghost", false, updateFlags{}, env.out)
+	err := updateOne(t.Context(), "ghost", false, updateFlags{}, env.out)
 	if err == nil || !strings.Contains(err.Error(), "no manifest") {
 		t.Errorf("updateOne for unknown slug: err = %v, want `no manifest`", err)
 	}
@@ -594,7 +594,7 @@ func TestUpdateBulk_ManualThemeIsSkippedNotFailed(t *testing.T) {
 	env.useManifestDir(t, map[string]string{"okayish": manifestHealthy})
 	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
 
-	if err := updateBulk(updateFlags{}, env.out); err != nil {
+	if err := updateBulk(t.Context(), updateFlags{}, env.out); err != nil {
 		t.Fatalf("updateBulk: %v", err)
 	}
 	if !strings.Contains(env.out.String(), "0 updated, 1 skipped.") {
@@ -606,7 +606,7 @@ func TestUpdateBulk_NothingInstalled(t *testing.T) {
 	env := setupCmdEnv(t)
 	env.useManifestDir(t, map[string]string{})
 
-	if err := updateBulk(updateFlags{}, env.out); err != nil {
+	if err := updateBulk(t.Context(), updateFlags{}, env.out); err != nil {
 		t.Fatalf("updateBulk: %v", err)
 	}
 	if !strings.Contains(env.out.String(), "Nothing to update") {
@@ -620,7 +620,7 @@ func TestUpdateBulk_CategoryFilterMatchesNothing(t *testing.T) {
 	env.putRecord(t, state.Record{Slug: "okayish", InstallType: "manual"})
 
 	// okayish is editor; ask for terminal — should report none.
-	err := updateBulk(updateFlags{Category: "terminal"}, env.out)
+	err := updateBulk(t.Context(), updateFlags{Category: "terminal"}, env.out)
 	if err == nil || !strings.Contains(err.Error(), `no installed themes in category "terminal"`) {
 		t.Errorf("category filter with no matches: err = %v, want `no installed themes in category`", err)
 	}

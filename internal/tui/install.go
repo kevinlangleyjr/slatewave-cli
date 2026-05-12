@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -180,8 +181,10 @@ type InstallOptions struct {
 
 // RunInstall executes the install pipeline for every theme in the slice and renders progress as a live TUI. Returns nil if every theme installed successfully, or a non-nil error reflecting the *number* of failures (not the first error) so the caller can summarize without losing context.
 //
+// ctx flows from the caller (cobra's cmd.Context()) into runInstallPipeline so a SIGINT at the CLI layer cancels the in-flight subprocess. The TUI's own Ctrl-C handling (KeyCtrlC → tea.Quit) is wired in a follow-up commit — until that lands, hitting Ctrl-C inside the dashboard quits the view but leaves the goroutine running on Background-equivalent semantics.
+//
 // Installs run serially in v0.0.4. v0.0.5 may layer a worker pool on top once the activator is audited for cross-theme write contention on shared config files (.zshrc, .gitconfig).
-func RunInstall(themes []manifest.Theme, opts InstallOptions) error {
+func RunInstall(ctx context.Context, themes []manifest.Theme, opts InstallOptions) error {
 	if len(themes) == 0 {
 		return nil
 	}
@@ -190,7 +193,7 @@ func RunInstall(themes []manifest.Theme, opts InstallOptions) error {
 
 	go func() {
 		for _, th := range themes {
-			runInstallPipeline(p, th, opts)
+			runInstallPipeline(ctx, p, th, opts)
 		}
 		p.Send(installCompleteMsg{})
 	}()
@@ -213,7 +216,7 @@ func RunInstall(themes []manifest.Theme, opts InstallOptions) error {
 }
 
 // runInstallPipeline mirrors cmd/install.go's installOne but emits progress to a bubbletea program rather than printing static step lines. Side effects (state writes, file changes) are identical so a TUI install and a plain install land the same observable result.
-func runInstallPipeline(p *tea.Program, th manifest.Theme, opts InstallOptions) {
+func runInstallPipeline(ctx context.Context, p *tea.Program, th manifest.Theme, opts InstallOptions) {
 	slug := th.Theme.Slug
 
 	if th.Install.Type != "marketplace" && th.Install.Type != "manual" {
@@ -225,7 +228,7 @@ func runInstallPipeline(p *tea.Program, th manifest.Theme, opts InstallOptions) 
 	}
 
 	p.Send(progressMsg{slug: slug, state: rowInstalling, step: installStepLabel(th)})
-	rec, err := installer.Install(th, installer.Options{DryRun: opts.DryRun})
+	rec, err := installer.Install(ctx, th, installer.Options{DryRun: opts.DryRun})
 	if err != nil {
 		p.Send(progressMsg{slug: slug, state: rowFailed, err: err})
 		return

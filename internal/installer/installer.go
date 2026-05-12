@@ -172,10 +172,16 @@ func writeAtomic(dest string, mode os.FileMode, write func(io.Writer) error) err
 // guarantee the update path always had.
 //
 // Status, content-type, and body-size guards run before any write hits
-// the temp file.
-func fetchAtomic(url, dest string) error {
+// the temp file. ctx aborts the request — Ctrl-C in the TUI / SIGINT in
+// the CLI kills an in-flight download instead of blocking on the body
+// read until the httpClient timeout fires.
+func fetchAtomic(ctx context.Context, url, dest string) error {
 	verbose.Log("fetch: %s → %s", url, dest)
-	resp, err := httpClient.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("fetch %s: %w", url, err)
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("fetch %s: %w", url, err)
 	}
@@ -205,15 +211,22 @@ type Options struct {
 // (and an uninstall hook if the type needs one beyond the generic
 // CreatedPaths + Backups reversal), then add one entry to installers.
 // No changes to Install/Update/Uninstall themselves.
+//
+// install + update accept a context so a caller (the TUI on Ctrl-C,
+// the CLI on SIGINT) can cancel an in-flight `git clone` / VS Code
+// extension shell-out / post-hook. uninstallExtra is currently
+// context-less — uninstall's blast radius is small enough that the
+// hang risk wasn't worth the API churn; threading it through is a
+// follow-up if a real cancellation case emerges.
 type installerImpl struct {
 	// install fetches assets and returns the populated record. Required.
-	install func(t manifest.Theme, rec state.Record, opts Options) (state.Record, error)
+	install func(ctx context.Context, t manifest.Theme, rec state.Record, opts Options) (state.Record, error)
 
 	// update re-fetches assets without re-running activation. Optional —
 	// nil means this install type has no automated update path
 	// (marketplace and manual are the obvious cases) and Update returns
 	// ErrNoAutomatedUpdate.
-	update func(t manifest.Theme, opts Options) error
+	update func(ctx context.Context, t manifest.Theme, opts Options) error
 
 	// uninstallExtra runs after the generic reversal (deleting
 	// CreatedPaths, restoring Backups, removing AppendedLine). Optional —
@@ -254,6 +267,12 @@ var installers = map[string]installerImpl{
 // Record is populated with reversal info (created paths, etc.) but
 // its Activate fields are still empty — the activator fills those.
 //
+// ctx is honored by every subprocess the install pipeline spawns —
+// `git clone`, the VS Code extension CLI, and the optional post-hook —
+// so a TUI Ctrl-C or a CLI SIGINT kills the in-flight child instead of
+// orphaning it. Callers that don't need cancellation pass
+// context.Background(); tests do the same.
+//
 // When the manifest declares Install.Variants, Install first detects
 // the installed tool version (via Theme.DetectCommand + VersionRegex)
 // and overlays the matching variant's URL/Dest/Files onto t.Install
@@ -261,7 +280,7 @@ var installers = map[string]installerImpl{
 // variant is propagated as a normal install error — never silently
 // fall back, since that would re-ship the wrong file to exactly the
 // hosts the variant exists to handle.
-func Install(t manifest.Theme, opts Options) (state.Record, error) {
+func Install(ctx context.Context, t manifest.Theme, opts Options) (state.Record, error) {
 	rec := state.Record{
 		Slug:         t.Theme.Slug,
 		InstalledAt:  time.Now().UTC(),
@@ -285,7 +304,7 @@ func Install(t manifest.Theme, opts Options) (state.Record, error) {
 	if !ok {
 		return rec, fmt.Errorf("unknown install type %q for theme %q", t.Install.Type, t.Theme.Slug)
 	}
-	return impl.install(t, rec, opts)
+	return impl.install(ctx, t, rec, opts)
 }
 
 // Detect runs the manifest's detect_command; non-zero exit → tool not
@@ -333,7 +352,7 @@ func curlFiles(t manifest.Theme) ([]manifest.InstallFile, error) {
 	return []manifest.InstallFile{{URL: t.Install.URL, Dest: t.Install.Dest}}, nil
 }
 
-func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
+func doCurl(ctx context.Context, t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
 	files, err := curlFiles(t)
 	if err != nil {
 		return rec, err
@@ -346,13 +365,13 @@ func doCurl(t manifest.Theme, rec state.Record, opts Options) (state.Record, err
 		if err != nil {
 			return rec, err
 		}
-		if err := fetchAtomic(f.URL, dest); err != nil {
+		if err := fetchAtomic(ctx, f.URL, dest); err != nil {
 			return rec, err
 		}
 		rec.CreatedPaths = append(rec.CreatedPaths, dest)
 	}
 	if t.Install.Post != nil {
-		if err := shell.RunInherit(context.Background(), t.Install.Post.Command); err != nil {
+		if err := shell.RunInherit(ctx, t.Install.Post.Command); err != nil {
 			return rec, fmt.Errorf("post-hook %q: %w", t.Install.Post.Command, err)
 		}
 	}
@@ -380,7 +399,7 @@ func pickCloneDest(t manifest.Theme) string {
 	return t.Install.CloneDest
 }
 
-func doClone(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
+func doClone(ctx context.Context, t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
 	dest, err := expandPath(pickCloneDest(t))
 	if err != nil {
 		return rec, err
@@ -397,14 +416,14 @@ func doClone(t manifest.Theme, rec state.Record, opts Options) (state.Record, er
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return rec, fmt.Errorf("create parent dir: %w", err)
 	}
-	cmd := exec.Command("git", "clone", "--depth", "1", t.Install.Repo, dest)
+	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", t.Install.Repo, dest)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return rec, fmt.Errorf("git clone %s: %w", t.Install.Repo, err)
 	}
 	rec.CreatedPaths = append(rec.CreatedPaths, dest)
 	if t.Install.Post != nil {
-		if err := shell.RunInherit(context.Background(), t.Install.Post.Command); err != nil {
+		if err := shell.RunInherit(ctx, t.Install.Post.Command); err != nil {
 			return rec, fmt.Errorf("post-hook %q: %w", t.Install.Post.Command, err)
 		}
 	}
@@ -426,7 +445,7 @@ func VSCodeExtCLI(t manifest.Theme) string {
 	return "code"
 }
 
-func doVSCodeExt(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
+func doVSCodeExt(ctx context.Context, t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
 	if t.Install.Identifier == "" {
 		return rec, fmt.Errorf("vscode-ext install for %q has no install.identifier", t.Theme.Slug)
 	}
@@ -434,7 +453,7 @@ func doVSCodeExt(t manifest.Theme, rec state.Record, opts Options) (state.Record
 		return rec, nil
 	}
 	cli := VSCodeExtCLI(t)
-	cmd := exec.Command(cli, "--install-extension", t.Install.Identifier)
+	cmd := exec.CommandContext(ctx, cli, "--install-extension", t.Install.Identifier)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return rec, fmt.Errorf("%s --install-extension %s: %w\n%s", cli, t.Install.Identifier, err, out)
@@ -444,7 +463,7 @@ func doVSCodeExt(t manifest.Theme, rec state.Record, opts Options) (state.Record
 
 // ----- type: marketplace (browser-open) -----
 
-func doMarketplace(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
+func doMarketplace(_ context.Context, t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
 	if t.Install.URL == "" {
 		return rec, fmt.Errorf("marketplace install for %q has no install.url", t.Theme.Slug)
 	}
@@ -459,8 +478,8 @@ func doMarketplace(t manifest.Theme, rec state.Record, opts Options) (state.Reco
 
 // ----- type: gui-import -----
 
-func doGUIImport(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
-	rec, err := doCurl(t, rec, opts)
+func doGUIImport(ctx context.Context, t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
+	rec, err := doCurl(ctx, t, rec, opts)
 	if err != nil {
 		return rec, err
 	}
@@ -476,7 +495,7 @@ func doGUIImport(t manifest.Theme, rec state.Record, opts Options) (state.Record
 
 // ----- type: manual -----
 
-func doManual(t manifest.Theme, rec state.Record, opts Options) (state.Record, error) {
+func doManual(_ context.Context, _ manifest.Theme, rec state.Record, _ Options) (state.Record, error) {
 	// Manual is "print instructions and exit" — no filesystem effects.
 	// The cobra command is responsible for printing the instructions
 	// from t.Install.Instructions.

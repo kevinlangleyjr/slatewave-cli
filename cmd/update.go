@@ -72,20 +72,21 @@ with a one-line hint and continue.`,
 			return fmt.Errorf("specify a theme name, --all, or --category=<name>")
 		}
 
+		ctx := cmd.Context()
 		switch {
 		case f.Interactive:
-			return updateInteractiveTUI(args, bulk, f, out)
+			return updateInteractiveTUI(ctx, args, bulk, f, out)
 		case f.NoInteractive:
 			if !bulk {
-				return updateOne(args[0], false, f, out)
+				return updateOne(ctx, args[0], false, f, out)
 			}
-			return updateBulk(f, out)
+			return updateBulk(ctx, f, out)
 		case !bulk:
-			return updateOne(args[0], false, f, out)
+			return updateOne(ctx, args[0], false, f, out)
 		case isTerminal():
-			return updateInteractiveTUI(args, bulk, f, out)
+			return updateInteractiveTUI(ctx, args, bulk, f, out)
 		default:
-			return updateBulk(f, out)
+			return updateBulk(ctx, f, out)
 		}
 	},
 }
@@ -99,7 +100,7 @@ func init() {
 	_ = updateCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
 
-func updateInteractiveTUI(args []string, bulk bool, f updateFlags, out io.Writer) error {
+func updateInteractiveTUI(ctx context.Context, args []string, bulk bool, f updateFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -162,10 +163,10 @@ func updateInteractiveTUI(args []string, bulk bool, f updateFlags, out io.Writer
 		return nil
 	}
 
-	return tui.RunFix(fixes, tui.FixOptions{DryRun: f.DryRun, Title: "Updating"})
+	return tui.RunFix(ctx, fixes, tui.FixOptions{DryRun: f.DryRun, Title: "Updating"})
 }
 
-func updateBulk(f updateFlags, out io.Writer) error {
+func updateBulk(ctx context.Context, f updateFlags, out io.Writer) error {
 	s, err := state.Load()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -198,7 +199,7 @@ func updateBulk(f updateFlags, out io.Writer) error {
 		if i > 0 {
 			fmt.Fprintln(out)
 		}
-		err := updateOne(slug, true, f, out)
+		err := updateOne(ctx, slug, true, f, out)
 		switch {
 		case errors.Is(err, installer.ErrNoAutomatedUpdate):
 			skipped++
@@ -220,7 +221,7 @@ func updateBulk(f updateFlags, out io.Writer) error {
 	return nil
 }
 
-func updateOne(slug string, suppressFinal bool, f updateFlags, out io.Writer) error {
+func updateOne(ctx context.Context, slug string, suppressFinal bool, f updateFlags, out io.Writer) error {
 	t, err := manifest.LoadOne(slug)
 	if err != nil {
 		return fmt.Errorf("no manifest for %q", slug)
@@ -242,7 +243,7 @@ func updateOne(slug string, suppressFinal bool, f updateFlags, out io.Writer) er
 
 	opts := installer.Options{DryRun: f.DryRun}
 	done := ui.StepStart(out, updateLabel(t))
-	if err := installer.Update(t, opts); err != nil {
+	if err := installer.Update(ctx, t, opts); err != nil {
 		if errors.Is(err, installer.ErrNoAutomatedUpdate) {
 			done(nil)
 			ui.MutedLn(out, fmt.Sprintf("  No automated update for install type %q — check getslatewave.com/themes/%s for the latest steps.", t.Install.Type, slug))
@@ -256,7 +257,7 @@ func updateOne(slug string, suppressFinal bool, f updateFlags, out io.Writer) er
 	if t.Install.Post != nil {
 		done := ui.StepStart(out, t.Install.Post.Description)
 		if !f.DryRun {
-			if err := shell.RunInherit(context.Background(), t.Install.Post.Command); err != nil {
+			if err := shell.RunInherit(ctx, t.Install.Post.Command); err != nil {
 				done(err)
 				return fmt.Errorf("post-hook: %w", err)
 			}
