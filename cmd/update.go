@@ -73,6 +73,9 @@ with a one-line hint and continue.`,
 		}
 
 		ctx := cmd.Context()
+		if f.Interactive {
+			emitInteractiveDeprecationWarning()
+		}
 		switch {
 		case f.Interactive:
 			return updateInteractiveTUI(ctx, args, bulk, f, out)
@@ -95,7 +98,11 @@ func init() {
 	updateCmd.Flags().Bool("dry-run", false, "Print what would happen without re-fetching")
 	updateCmd.Flags().Bool("all", false, "Update every installed theme")
 	updateCmd.Flags().String("category", "", "Update every installed theme in this category")
-	updateCmd.Flags().Bool("interactive", false, "Force the live progress dashboard (default for bulk updates on a TTY)")
+	// See cmd/install.go for why this is DIY'd instead of using cobra's
+	// pflag.MarkDeprecated — the cobra plumbing eats the warning before
+	// it can reach stderr. emitInteractiveDeprecationWarning lives in
+	// install.go and is shared by both commands.
+	updateCmd.Flags().Bool("interactive", false, "(deprecated) Force the live progress dashboard — now the default for bulk updates on a TTY")
 	updateCmd.Flags().Bool("no-interactive", false, "Force streaming output instead of the dashboard (useful for CI / log capture)")
 	_ = updateCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
