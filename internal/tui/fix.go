@@ -77,7 +77,13 @@ type fixModel struct {
 	rowMap  map[string]*fixRow
 	spinner spinner.Model
 	title   string
-	done    bool
+	// cancel is the CancelFunc paired with the context that flows into
+	// runFixPipeline. KeyCtrlC calls it before quitting the dashboard so
+	// the in-flight subprocess (git pull, post-hook, code --uninstall-
+	// extension) is killed instead of orphaned. nil when no parent has
+	// registered one — matches the v0.0.19 behavior for direct callers.
+	cancel context.CancelFunc
+	done   bool
 }
 
 func newFixModel(fixes []Fix, title string) fixModel {
@@ -119,6 +125,9 @@ func (m fixModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyCtrlC {
+			if m.cancel != nil {
+				m.cancel()
+			}
 			return m, tea.Quit
 		}
 	}
@@ -245,21 +254,24 @@ func PickFixes(fixes []Fix) ([]Fix, error) {
 
 // RunFix executes each fix serially and renders progress as a live TUI. Returns nil if every fix succeeded, or a non-nil error reflecting the *count* of failures so the caller can summarize.
 //
-// ctx threads into the update / uninstall subprocesses spawned by each fix so a SIGINT at the CLI layer kills the in-flight child. The TUI's own Ctrl-C handling (KeyCtrlC → tea.Quit) is wired in a follow-up commit.
+// Wraps ctx in a CancelFunc stashed on the model so the bubbletea KeyCtrlC handler can cancel the in-flight subprocess. Bubbletea grabs raw stdin, so Ctrl-C inside the dashboard arrives as a KeyMsg, not as SIGINT — the signal-aware ctx at the CLI layer alone wouldn't reach this far.
 func RunFix(ctx context.Context, fixes []Fix, opts FixOptions) error {
 	if len(fixes) == 0 {
 		return nil
 	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	title := opts.Title
 	if title == "" {
 		title = "Fixing"
 	}
 	m := newFixModel(fixes, title)
+	m.cancel = cancel
 	p := tea.NewProgram(m)
 
 	go func() {
 		for _, f := range fixes {
-			runFixPipeline(ctx, p, f, opts)
+			runFixPipeline(runCtx, p, f, opts)
 		}
 		p.Send(fixCompleteMsg{})
 	}()
@@ -282,6 +294,9 @@ func RunFix(ctx context.Context, fixes []Fix, opts FixOptions) error {
 }
 
 func runFixPipeline(ctx context.Context, p *tea.Program, f Fix, opts FixOptions) {
+	if ctx.Err() != nil {
+		return
+	}
 	switch f.Kind {
 	case FixUpdate:
 		runUpdateFix(ctx, p, f, opts)
