@@ -62,6 +62,21 @@ func TestEmitUpgradeNag_NilResultEmitsNothing(t *testing.T) {
 	}
 }
 
+// Direct test for emitInteractiveDeprecationWarning — same stderr-only
+// contract as the upgrade nag. A `slatewave install --interactive
+// --json | jq` pipeline must not see the deprecation banner in stdout.
+func TestEmitInteractiveDeprecationWarning_WritesToStderrNotStdout(t *testing.T) {
+	_, _, restore := captureStdFds(t)
+	emitInteractiveDeprecationWarning()
+	stdout, stderr := restore()
+	if stdout.Len() != 0 {
+		t.Errorf("deprecation leaked to stdout (would corrupt --json output): %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "--interactive is deprecated") {
+		t.Errorf("expected deprecation on stderr containing %q, got: %q", "--interactive is deprecated", stderr.String())
+	}
+}
+
 // captureStdFds swaps os.Stdout / os.Stderr to pipes, runs the body via
 // the returned restore func, and returns buffers holding what was
 // written to each fd. Caller invokes restore() exactly once when the

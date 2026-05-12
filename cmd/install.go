@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -14,6 +15,21 @@ import (
 	"github.com/kevinlangleyjr/slatewave-cli/internal/tui"
 	"github.com/kevinlangleyjr/slatewave-cli/internal/ui"
 )
+
+// emitInteractiveDeprecationWarning writes a one-line stderr nudge
+// when --interactive is set on install / update. The flag still works
+// today — the dashboard is now the default for bulk runs on a TTY, so
+// --interactive's only remaining effect is forcing the dashboard for
+// the single-theme case. Visible deprecation now, removal in a future
+// major release.
+//
+// Always stderr (never the cmd writer or stdout) — same contract as
+// the upgrade nag (see cmd/root.go's emitUpgradeNag): a `slatewave
+// install --json --interactive` pipeline mustn't see the warning in
+// stdout. Tested in install_test.go's deprecation test.
+func emitInteractiveDeprecationWarning() {
+	fmt.Fprintln(os.Stderr, ui.Muted.Render("➜ --interactive is deprecated and will be removed in a future release; use --no-interactive to opt out of the dashboard (it's now the default for bulk runs on a TTY)"))
+}
 
 // installFlags bundles install's parsed flag values. Constructed once
 // per RunE invocation from cmd.Flags() and threaded through every
@@ -85,6 +101,9 @@ at the end.`,
 		//   bulk + no TTY          → streaming summary.
 		//   single (no bulk flag)  → streaming, single-theme pipeline.
 		ctx := cmd.Context()
+		if f.Interactive {
+			emitInteractiveDeprecationWarning()
+		}
 		switch {
 		case f.Interactive:
 			return installInteractiveTUI(ctx, slugs, f, out)
@@ -107,7 +126,22 @@ func init() {
 	installCmd.Flags().Bool("dry-run", false, "Print what would happen without writing files")
 	installCmd.Flags().Bool("all", false, "Install every shipping theme")
 	installCmd.Flags().String("category", "", "Install every theme in this category (editor / terminal / notes / productivity / chat)")
-	installCmd.Flags().Bool("interactive", false, "Force the live progress dashboard (default for bulk installs on a TTY)")
+	// --interactive used to be required to opt into the TUI dashboard.
+	// Since the dashboard became the default for bulk + TTY runs in
+	// v0.0.10, the flag's only remaining effect is to force the
+	// dashboard for the single-theme case. Marking it (deprecated) in
+	// help and printing a one-line nudge to stderr when used — see the
+	// emitInteractiveDeprecationWarning helper invoked from RunE.
+	//
+	// Cobra's pflag.MarkDeprecated would be the idiomatic path but
+	// cobra reroutes pflag's output to an internal flagErrorBuf that
+	// only flushes on parse errors, so the deprecation print never
+	// reaches stderr in practice. DIY-ing the warning in RunE works
+	// reliably across cobra versions and lets us keep the flag visible
+	// in --help (with a (deprecated) marker) instead of hidden, which
+	// is friendlier for users wondering why their existing wrappers
+	// still work.
+	installCmd.Flags().Bool("interactive", false, "(deprecated) Force the live progress dashboard — now the default for bulk installs on a TTY")
 	installCmd.Flags().Bool("no-interactive", false, "Force streaming output instead of the dashboard (useful for CI / log capture)")
 	_ = installCmd.RegisterFlagCompletionFunc("category", validCategories)
 }
