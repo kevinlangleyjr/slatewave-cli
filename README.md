@@ -133,6 +133,20 @@ slatewave completion fish > ~/.config/fish/completions/slatewave.fish
 
 Then `slatewave install <TAB>` lists every theme, `slatewave uninstall <TAB>` lists only what's installed, `--category=<TAB>` lists just the categories that have at least one theme.
 
+## Terminal theme
+
+slatewave's output auto-adapts to your terminal background — slate text goes dark on a light terminal and light on a dark one, accent stops deepen on light backgrounds so the brand colors stay readable on either side. Detection runs once per process via the OSC 11 escape sequence and is cached.
+
+If your terminal doesn't respond to OSC 11 (some SSH paths, older Windows consoles, anything tunneled through a multiplexer that swallows the response) or you'd rather pin a specific look, set `SLATEWAVE_THEME`:
+
+```sh
+export SLATEWAVE_THEME=light   # force the light-bg palette (deep accents, dark text)
+export SLATEWAVE_THEME=dark    # force the dark-bg palette (bright accents, light text)
+export SLATEWAVE_THEME=auto    # default — let slatewave detect (same as unset)
+```
+
+Values are case-insensitive. Anything other than `light` / `dark` falls through to auto-detection. Handy in CI logs where you want deterministic colors, or when your preference inverts what your terminal advertises.
+
 ## How it works
 
 Each Slatewave theme repo ships a `slatewave.toml` describing how the CLI should install it:
