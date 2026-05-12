@@ -67,6 +67,15 @@ var rootCmd = &cobra.Command{
 // finish, then prints a one-line nag to stderr if the user is on an
 // out-of-date binary. Silent on no-update / no-result / wait-expired
 // so a healthy run produces zero noise.
+//
+// Always writes to os.Stderr (never the cmd's writer or os.Stdout).
+// `slatewave list --json | jq` and similar piping idioms send only
+// stdout through the consumer; stderr stays attached to the user's
+// terminal, so the nag never contaminates a JSON payload. Users who
+// merge with `2>&1` opt into mixed output by choice — the nag isn't
+// suppressed in that case because doing so would also hide it from
+// every other reasonable invocation. The lock-in test for this
+// contract lives in root_test.go.
 func emitUpgradeNag() {
 	if versionCheckCh == nil {
 		return
