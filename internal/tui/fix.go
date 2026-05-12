@@ -294,7 +294,10 @@ func RunFix(ctx context.Context, fixes []Fix, opts FixOptions) error {
 	if err != nil {
 		return err
 	}
-	finalModel := final.(fixModel)
+	finalModel, ok := final.(fixModel)
+	if !ok {
+		return fmt.Errorf("internal: bubbletea returned unexpected model type %T", final)
+	}
 	var failed int
 	for _, row := range finalModel.rows {
 		if row.state == fixFailed {

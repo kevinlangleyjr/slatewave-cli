@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -164,5 +166,9 @@ func RunBrowse(themes []manifest.Theme, installed, detected map[string]bool) (Br
 	if err != nil {
 		return BrowseAction{}, err
 	}
-	return final.(browseModel).action, nil
+	bm, ok := final.(browseModel)
+	if !ok {
+		return BrowseAction{}, fmt.Errorf("internal: bubbletea returned unexpected model type %T", final)
+	}
+	return bm.action, nil
 }
