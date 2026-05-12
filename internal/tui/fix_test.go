@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -76,6 +77,30 @@ func TestFixModel_CtrlCQuits(t *testing.T) {
 	}
 }
 
+func TestFixModel_CtrlCCallsCancel(t *testing.T) {
+	// Regression for Phase A: KeyCtrlC must invoke the model's CancelFunc
+	// so the in-flight git pull / post-hook / VS Code uninstall dies
+	// with the dashboard instead of being orphaned.
+	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}}, "Fixing")
+	called := false
+	m.cancel = func() { called = true }
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if !called {
+		t.Error("ctrl-c did not invoke fixModel.cancel")
+	}
+}
+
+func TestFixModel_CtrlCNilCancelDoesNotPanic(t *testing.T) {
+	m := newFixModel([]Fix{{Slug: "bat", Name: "bat", Kind: FixUpdate}}, "Fixing")
+	if m.cancel != nil {
+		t.Fatal("newFixModel set cancel; test premise broken")
+	}
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmd == nil {
+		t.Error("ctrl-c with nil cancel should still return tea.Quit")
+	}
+}
+
 func TestFixModel_ViewRendersRows(t *testing.T) {
 	m := newFixModel([]Fix{
 		{Slug: "bat", Name: "Slatewave for bat", Kind: FixUpdate},
@@ -121,6 +146,16 @@ func TestRunFix_EmptySliceReturnsNil(t *testing.T) {
 	if err := RunFix(t.Context(), nil, FixOptions{}); err != nil {
 		t.Errorf("RunFix(nil) = %v, want nil", err)
 	}
+}
+
+func TestRunFixPipeline_CancelledCtxBailsBeforeSend(t *testing.T) {
+	// Same guard as runInstallPipeline: a cancelled ctx returns before
+	// any p.Send so post-Ctrl-C the goroutine doesn't waste cycles on
+	// remaining themes. nil *tea.Program would deref-panic if the guard
+	// failed; reaching the end of this test proves it didn't.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	runFixPipeline(ctx, nil, Fix{Slug: "bat", Name: "bat", Kind: FixDropOrphan}, FixOptions{})
 }
 
 func TestFixModel_CustomTitleAppearsInView(t *testing.T) {

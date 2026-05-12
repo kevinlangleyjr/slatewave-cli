@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -111,6 +112,33 @@ func TestInstallModel_CtrlCQuits(t *testing.T) {
 	}
 }
 
+func TestInstallModel_CtrlCCallsCancel(t *testing.T) {
+	// Regression for Phase A: KeyCtrlC must invoke the model's CancelFunc
+	// so the in-flight git clone / post-hook actually dies instead of
+	// being orphaned when the dashboard quits.
+	m := newInstallModel([]manifest.Theme{stubTheme("bat", "editor", "true")})
+	called := false
+	m.cancel = func() { called = true }
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if !called {
+		t.Error("ctrl-c did not invoke installModel.cancel")
+	}
+}
+
+func TestInstallModel_CtrlCNilCancelDoesNotPanic(t *testing.T) {
+	// Direct callers (legacy code paths, tests) construct installModel
+	// without going through RunInstall and don't set cancel. KeyCtrlC
+	// must still quit cleanly instead of panicking on a nil func call.
+	m := newInstallModel([]manifest.Theme{stubTheme("bat", "editor", "true")})
+	if m.cancel != nil {
+		t.Fatal("newInstallModel set cancel; test premise broken")
+	}
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmd == nil {
+		t.Error("ctrl-c with nil cancel should still return tea.Quit")
+	}
+}
+
 func TestInstallModel_ViewRendersAllRows(t *testing.T) {
 	m := newInstallModel([]manifest.Theme{
 		stubTheme("bat", "editor", "true"),
@@ -155,4 +183,14 @@ func TestRunInstall_EmptySliceReturnsNil(t *testing.T) {
 	if err := RunInstall(t.Context(), nil, InstallOptions{}); err != nil {
 		t.Errorf("RunInstall(nil) = %v, want nil", err)
 	}
+}
+
+func TestRunInstallPipeline_CancelledCtxBailsBeforeSend(t *testing.T) {
+	// Regression for Phase A's bail-fast guard: a cancelled ctx must
+	// short-circuit before any p.Send. We pass nil *tea.Program — if the
+	// guard works, the function returns before dereferencing it; if it
+	// doesn't, the test panics on the first Send.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	runInstallPipeline(ctx, nil, stubTheme("bat", "editor", "true"), InstallOptions{})
 }
