@@ -195,8 +195,6 @@ type InstallOptions struct {
 // RunInstall executes the install pipeline for every theme in the slice and renders progress as a live TUI. Returns nil if every theme installed successfully, or a non-nil error reflecting the *number* of failures (not the first error) so the caller can summarize without losing context.
 //
 // ctx flows from the caller (cobra's cmd.Context()) into runInstallPipeline so a SIGINT at the CLI layer cancels the in-flight subprocess. RunInstall wraps it in a CancelFunc stashed on the model so the bubbletea KeyCtrlC handler can cancel locally — bubbletea grabs raw stdin, so Ctrl-C inside the dashboard arrives as a KeyMsg, not as SIGINT, and that signal-aware ctx alone isn't enough.
-//
-// Installs run serially in v0.0.4. v0.0.5 may layer a worker pool on top once the activator is audited for cross-theme write contention on shared config files (.zshrc, .gitconfig).
 func RunInstall(ctx context.Context, themes []manifest.Theme, opts InstallOptions) error {
 	if len(themes) == 0 {
 		return nil
