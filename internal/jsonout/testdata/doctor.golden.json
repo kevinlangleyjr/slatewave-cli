@@ -1,0 +1,36 @@
+{
+  "summary": {
+    "healthy": 1,
+    "stale": 1,
+    "missing_tool": 1,
+    "orphan": 1
+  },
+  "themes": [
+    {
+      "slug": "bat",
+      "name": "Slatewave for bat",
+      "status": "healthy"
+    },
+    {
+      "slug": "btop",
+      "name": "Slatewave for btop",
+      "status": "stale",
+      "detail": "verify command exited non-zero",
+      "remedy": "slatewave update btop"
+    },
+    {
+      "slug": "lsd",
+      "name": "Slatewave for lsd",
+      "status": "missing-tool",
+      "detail": "lsd is not installed",
+      "remedy": "slatewave uninstall lsd"
+    },
+    {
+      "slug": "ghost",
+      "name": "ghost (orphan)",
+      "status": "orphan",
+      "detail": "no manifest ships for this slug",
+      "remedy": "slatewave doctor --fix"
+    }
+  ]
+}
