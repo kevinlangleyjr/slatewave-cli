@@ -143,14 +143,16 @@ func doIniKey(t manifest.Theme, rec *state.Record, opts Options) error {
 	return writeFileLogged(file, []byte(updated), mode)
 }
 
-// quoteIfNeeded wraps a value in double-quotes if it contains spaces
-// and isn't already quoted. Matches the convention btop.conf uses.
+// quoteIfNeeded wraps a value in double-quotes unless it's already
+// quoted. The name is a historical artifact — an earlier version only
+// quoted on whitespace, but the three ini-key consumers we ship
+// (btop.conf, helix's config.toml, ghostty's config) all parse a quoted
+// value correctly and TOML strictly requires quoting, so the function
+// always quotes now. Kept under the old name because every call site
+// reads cleaner as `quoteIfNeeded(value)` than the literal `"`+v+`"`.
 func quoteIfNeeded(v string) string {
 	if strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
 		return v
-	}
-	if !strings.ContainsAny(v, " \t") {
-		return `"` + v + `"`
 	}
 	return `"` + v + `"`
 }
