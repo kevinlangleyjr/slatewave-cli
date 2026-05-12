@@ -47,11 +47,21 @@ type progressMsg struct {
 
 type installCompleteMsg struct{}
 
-// installModel is the bubbletea Model. The install goroutine runs in the background and pushes progressMsg via tea.Program.Send; Update applies them to the matching row, View re-renders.
+// installModel is the bubbletea Model. The install goroutine runs in
+// the background and pushes progressMsg via tea.Program.Send; Update
+// applies them to the matching row, View re-renders.
+//
+// cancel is the CancelFunc paired with the context that flows into
+// runInstallPipeline. KeyCtrlC calls it before returning tea.Quit so
+// the in-flight subprocess (git clone, post-hook) is killed instead of
+// orphaned. nil when no parent has registered one — Update no-ops in
+// that case, preserving the old "just quit the dashboard" behavior for
+// callers that don't construct via RunInstall.
 type installModel struct {
 	rows    []*installRow
 	rowMap  map[string]*installRow
 	spinner spinner.Model
+	cancel  context.CancelFunc
 	done    bool
 }
 
@@ -95,6 +105,9 @@ func (m installModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyCtrlC {
+			if m.cancel != nil {
+				m.cancel()
+			}
 			return m, tea.Quit
 		}
 	}
@@ -181,19 +194,22 @@ type InstallOptions struct {
 
 // RunInstall executes the install pipeline for every theme in the slice and renders progress as a live TUI. Returns nil if every theme installed successfully, or a non-nil error reflecting the *number* of failures (not the first error) so the caller can summarize without losing context.
 //
-// ctx flows from the caller (cobra's cmd.Context()) into runInstallPipeline so a SIGINT at the CLI layer cancels the in-flight subprocess. The TUI's own Ctrl-C handling (KeyCtrlC → tea.Quit) is wired in a follow-up commit — until that lands, hitting Ctrl-C inside the dashboard quits the view but leaves the goroutine running on Background-equivalent semantics.
+// ctx flows from the caller (cobra's cmd.Context()) into runInstallPipeline so a SIGINT at the CLI layer cancels the in-flight subprocess. RunInstall wraps it in a CancelFunc stashed on the model so the bubbletea KeyCtrlC handler can cancel locally — bubbletea grabs raw stdin, so Ctrl-C inside the dashboard arrives as a KeyMsg, not as SIGINT, and that signal-aware ctx alone isn't enough.
 //
 // Installs run serially in v0.0.4. v0.0.5 may layer a worker pool on top once the activator is audited for cross-theme write contention on shared config files (.zshrc, .gitconfig).
 func RunInstall(ctx context.Context, themes []manifest.Theme, opts InstallOptions) error {
 	if len(themes) == 0 {
 		return nil
 	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	m := newInstallModel(themes)
+	m.cancel = cancel
 	p := tea.NewProgram(m)
 
 	go func() {
 		for _, th := range themes {
-			runInstallPipeline(ctx, p, th, opts)
+			runInstallPipeline(runCtx, p, th, opts)
 		}
 		p.Send(installCompleteMsg{})
 	}()
@@ -216,7 +232,12 @@ func RunInstall(ctx context.Context, themes []manifest.Theme, opts InstallOption
 }
 
 // runInstallPipeline mirrors cmd/install.go's installOne but emits progress to a bubbletea program rather than printing static step lines. Side effects (state writes, file changes) are identical so a TUI install and a plain install land the same observable result.
+//
+// Bails fast on a cancelled ctx so post-Ctrl-C the goroutine doesn't waste a detect timeout per remaining theme before quietly exiting.
 func runInstallPipeline(ctx context.Context, p *tea.Program, th manifest.Theme, opts InstallOptions) {
+	if ctx.Err() != nil {
+		return
+	}
 	slug := th.Theme.Slug
 
 	if th.Install.Type != "marketplace" && th.Install.Type != "manual" {
