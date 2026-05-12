@@ -41,6 +41,12 @@ var rootCmd = &cobra.Command{
 	Version:       Version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	Run: func(cmd *cobra.Command, _ []string) {
+		out := ui.Writer(cmd)
+		ui.PrintBanner(out)
+		cmd.SetOut(out)
+		_ = cmd.Help()
+	},
 	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 		verbose.SetEnabled(verboseFlag)
 		versionCheckCh = version.Check(Version)
