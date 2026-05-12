@@ -233,7 +233,10 @@ func RunInstall(ctx context.Context, themes []manifest.Theme, opts InstallOption
 	if err != nil {
 		return err
 	}
-	finalModel := final.(installModel)
+	finalModel, ok := final.(installModel)
+	if !ok {
+		return fmt.Errorf("internal: bubbletea returned unexpected model type %T", final)
+	}
 	var failed int
 	for _, row := range finalModel.rows {
 		if row.state == rowFailed {
