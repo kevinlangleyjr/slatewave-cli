@@ -91,10 +91,13 @@ slatewave uninstall --all                 # uninstall every installed theme
 slatewave uninstall --category=editor     # uninstall every installed theme in a category
 slatewave uninstall <theme> --dry-run     # preview the reversal
 
+slatewave info <theme>                    # preview what `install <theme>` would do (paths, URLs, post-hook)
 slatewave status [theme]                  # show install footprint + paths
 slatewave doctor                          # diagnose drift across installed themes (read-only)
 slatewave doctor --fix                    # interactively remediate stale / missing-tool / orphan rows
 ```
+
+`list`, `status`, `doctor`, and `info` accept `--json` for machine-readable output — the schemas live in `internal/jsonout/` and are pinned by golden tests so scripts wiring slatewave into a dotfiles bootstrap or CI gate can rely on the shape.
 
 First time? Run `slatewave init` — it detects which Slatewave-supported
 tools are on this machine, multi-selects what's worth installing, and
