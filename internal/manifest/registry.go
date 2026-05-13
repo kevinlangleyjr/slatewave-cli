@@ -82,6 +82,26 @@ func VerifyCommandFor(t Theme) string {
 	return t.Verify.Command
 }
 
+// InstallDoneMessageFor picks the post-install success message for the
+// current OS. DoneMessageWindows wins on windows when set; otherwise
+// we fall through to the cross-OS DoneMessage. Returning "" lets the
+// CLI fall back to its generic default ("Slatewave is installed.").
+func InstallDoneMessageFor(t Theme) string {
+	if currentGOOS == "windows" && t.Install.DoneMessageWindows != "" {
+		return t.Install.DoneMessageWindows
+	}
+	return t.Install.DoneMessage
+}
+
+// UninstallDoneMessageFor mirrors InstallDoneMessageFor for the
+// uninstall block.
+func UninstallDoneMessageFor(t Theme) string {
+	if currentGOOS == "windows" && t.Uninstall.DoneMessageWindows != "" {
+		return t.Uninstall.DoneMessageWindows
+	}
+	return t.Uninstall.DoneMessage
+}
+
 // LoadAll returns every theme manifest, sorted by slug.
 //
 // Resolution order:

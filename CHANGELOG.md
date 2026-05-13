@@ -12,6 +12,7 @@ All notable changes to slatewave land here. Format roughly follows [Keep a Chang
 - `CONTRIBUTING.md` covering setup, adding a theme manifest, adding new install / activate types, the `make check` gate, and commit / PR conventions.
 - `CHANGELOG.md` seeded from full git history (this file).
 - `slatewave --help` (and every subcommand's `--help`) ends with a single-line footer pointing at https://getslatewave.com so users discovering the CLI find the theme catalog.
+- `install.done_message_windows` and `uninstall.done_message_windows` manifest fields override the cross-OS `done_message` on Windows. Mirrors the existing per-OS overrides on `detect_command` and `verify.command`. Used by `oh-my-posh` and `starship` to surface the PowerShell execution-policy hint (`Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`) that bites every Windows user on a fresh profile.
 
 ### Changed
 

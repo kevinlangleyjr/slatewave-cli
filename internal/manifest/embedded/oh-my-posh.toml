@@ -14,6 +14,7 @@ url = "https://raw.githubusercontent.com/kevinlangleyjr/slatewave-omp/main/slate
 # cmd.exe by default, so prefer the tilde form everywhere.
 dest = "~/.config/oh-my-posh/slatewave.omp.yml"
 done_message = "Restart your shell or `source` your rc file."
+done_message_windows = "Restart PowerShell. If the profile fails to load with an \"execution policies\" error, run once: Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned (CurrentUser scope doesn't require admin)."
 
 [activate]
 type = "shell-rc"

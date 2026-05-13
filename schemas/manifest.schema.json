@@ -155,6 +155,10 @@
           "type": "string",
           "description": "Success line printed after a non-bulk install completes (\"bat picks up the new theme on its next invocation.\", \"Restart your shell or `source` your rc file.\"). Omit to use the generic \"Slatewave is installed.\" default."
         },
+        "done_message_windows": {
+          "type": "string",
+          "description": "Windows-specific override of done_message. Most commonly used for shell-rc activates targeting a PowerShell profile, where users hit Set-ExecutionPolicy before the appended line runs. Empty / unset → fall back to done_message."
+        },
         "variants": {
           "type": "array",
           "description": "Version-conditional install overrides. When a variant's when_version matches the version captured via theme.version_regex, its url/dest/files override the parent fields (first-match-wins). Lets one manifest target multiple incompatible tool versions — e.g. lsd 1.0.x needs an ANSI-256 colors file because it silently ignores hex; 1.1+ wants the hex file. Requires theme.version_regex to be set.",
@@ -307,12 +311,16 @@
     },
     "uninstall": {
       "type": "object",
-      "description": "Optional per-theme post-uninstall guidance. Today only carries done_message; more fields can join here as new uninstall-side concerns appear.",
+      "description": "Optional per-theme post-uninstall guidance.",
       "additionalProperties": false,
       "properties": {
         "done_message": {
           "type": "string",
           "description": "Success line printed after `slatewave uninstall <slug>` completes (\"Reverted. Quit and relaunch Ghostty to see your original colors...\"). Omit to use the generic \"Reverted.\" default. Set this for tools that load config once at launch (terminals, editor processes) so the user knows to relaunch."
+        },
+        "done_message_windows": {
+          "type": "string",
+          "description": "Windows-specific override of uninstall.done_message. Empty / unset → fall back to done_message. Same rationale as install.done_message_windows."
         }
       }
     }

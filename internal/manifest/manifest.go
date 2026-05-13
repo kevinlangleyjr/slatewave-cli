@@ -117,6 +117,13 @@ type Install struct {
 	// prints the generic "Slatewave is installed." default. Lets a
 	// theme give tool-specific guidance without a code change.
 	DoneMessage string `toml:"done_message"`
+
+	// DoneMessageWindows overrides DoneMessage on Windows. Empty → fall
+	// back to DoneMessage. Used when the post-install guidance is
+	// genuinely different on Windows — most commonly shell-rc activates
+	// targeting a PowerShell profile, where users hit Set-ExecutionPolicy
+	// before the appended line runs.
+	DoneMessageWindows string `toml:"done_message_windows"`
 }
 
 // InstallFile is one entry in a multi-file curl install. URL is the
@@ -234,6 +241,11 @@ type Uninstall struct {
 	// default. Themes for tools that load config once at launch (terminals,
 	// editor processes) should set this to remind the user to relaunch.
 	DoneMessage string `toml:"done_message"`
+
+	// DoneMessageWindows overrides DoneMessage on Windows. Same shape as
+	// Install.DoneMessageWindows — used when uninstall guidance is
+	// Windows-specific (PowerShell session reset, etc.).
+	DoneMessageWindows string `toml:"done_message_windows"`
 }
 
 // Verify holds an optional smoke-test command that doctor + list reconcile

@@ -111,12 +111,13 @@ func uninstallOne(slug string, f uninstallFlags, out io.Writer) error {
 }
 
 // uninstallDoneMessage returns the success line for `slatewave uninstall <slug>`.
-// Honors the manifest's optional uninstall.done_message; falls back to the
-// generic "Reverted." for themes that re-read config per-invocation (bat,
-// delta, git diff — the next run picks up the empty state automatically).
+// Picks done_message_windows on Windows when set, otherwise the cross-OS
+// done_message; falls back to the generic "Reverted." for themes that
+// re-read config per-invocation (bat, delta, git diff — the next run
+// picks up the empty state automatically).
 func uninstallDoneMessage(t manifest.Theme) string {
-	if t.Uninstall.DoneMessage != "" {
-		return t.Uninstall.DoneMessage
+	if msg := manifest.UninstallDoneMessageFor(t); msg != "" {
+		return msg
 	}
 	return "Reverted."
 }

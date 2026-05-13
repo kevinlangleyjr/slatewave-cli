@@ -152,3 +152,57 @@ func TestLoadSupported_WindowsReturnsOptedInOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallDoneMessageFor_WindowsOverride(t *testing.T) {
+	th := Theme{}
+	th.Install.DoneMessage = "Restart your shell"
+	th.Install.DoneMessageWindows = "Restart PowerShell, then Set-ExecutionPolicy ..."
+
+	defer SetGOOSForTest("windows")()
+	if got := InstallDoneMessageFor(th); got != th.Install.DoneMessageWindows {
+		t.Errorf("on windows: got %q, want windows variant", got)
+	}
+}
+
+func TestInstallDoneMessageFor_FallbackWhenWindowsEmpty(t *testing.T) {
+	th := Theme{}
+	th.Install.DoneMessage = "Restart your shell"
+	// No DoneMessageWindows — windows must fall back.
+
+	defer SetGOOSForTest("windows")()
+	if got := InstallDoneMessageFor(th); got != "Restart your shell" {
+		t.Errorf("fallback on windows: got %q, want cross-OS message", got)
+	}
+}
+
+func TestInstallDoneMessageFor_UnixIgnoresWindowsOverride(t *testing.T) {
+	th := Theme{}
+	th.Install.DoneMessage = "Restart your shell"
+	th.Install.DoneMessageWindows = "Set-ExecutionPolicy ..."
+
+	defer SetGOOSForTest("darwin")()
+	if got := InstallDoneMessageFor(th); got != "Restart your shell" {
+		t.Errorf("on darwin: got %q, want cross-OS message", got)
+	}
+}
+
+func TestUninstallDoneMessageFor_WindowsOverride(t *testing.T) {
+	th := Theme{}
+	th.Uninstall.DoneMessage = "Reverted."
+	th.Uninstall.DoneMessageWindows = "Reverted. Restart PowerShell."
+
+	defer SetGOOSForTest("windows")()
+	if got := UninstallDoneMessageFor(th); got != th.Uninstall.DoneMessageWindows {
+		t.Errorf("on windows: got %q, want windows variant", got)
+	}
+}
+
+func TestUninstallDoneMessageFor_FallbackWhenWindowsEmpty(t *testing.T) {
+	th := Theme{}
+	th.Uninstall.DoneMessage = "Reverted."
+
+	defer SetGOOSForTest("windows")()
+	if got := UninstallDoneMessageFor(th); got != "Reverted." {
+		t.Errorf("fallback on windows: got %q, want cross-OS message", got)
+	}
+}

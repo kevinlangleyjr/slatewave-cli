@@ -330,12 +330,12 @@ func installOne(ctx context.Context, slug string, suppressFinal bool, f installF
 }
 
 // installDoneMessage returns the success line for `slatewave install <slug>`.
-// Honors the manifest's optional install.done_message; falls back to the
-// generic "Slatewave is installed." for themes that don't need
-// tool-specific guidance.
+// Picks done_message_windows on Windows when set, otherwise the cross-OS
+// done_message; falls back to the generic "Slatewave is installed." for
+// themes that don't need tool-specific guidance.
 func installDoneMessage(t manifest.Theme) string {
-	if t.Install.DoneMessage != "" {
-		return t.Install.DoneMessage
+	if msg := manifest.InstallDoneMessageFor(t); msg != "" {
+		return msg
 	}
 	return "Slatewave is installed."
 }
