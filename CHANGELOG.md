@@ -8,10 +8,17 @@ All notable changes to slatewave land here. Format roughly follows [Keep a Chang
 
 - Adaptive light/dark palette. The CLI auto-adapts to the terminal's background via OSC 11 — slate text goes dark on a light terminal and light on a dark one, accent stops deepen on light backgrounds so the brand colors stay readable on either side.
 - `SLATEWAVE_THEME` environment variable to force `light` / `dark` / `auto`. Useful when a terminal lies about its background (SSH paths, older Windows consoles), for CI determinism, or when a user's preference inverts the detected mode.
+- `SECURITY.md` policy: reporting channels, supported versions, scope, and the hardening already in place.
+- `CONTRIBUTING.md` covering setup, adding a theme manifest, adding new install / activate types, the `make check` gate, and commit / PR conventions.
+- `CHANGELOG.md` seeded from full git history (this file).
 
 ### Changed
 
 - README surfaces `slatewave info <theme>` in the Commands section and notes that `list` / `status` / `doctor` / `info` accept `--json`. Both features shipped earlier but the README hadn't caught up.
+
+### Removed
+
+- `--interactive` flag on `install` and `update`. The dashboard has been the default for bulk runs on a TTY since v0.0.10; the flag's only remaining behavior was forcing the dashboard on a single-theme install — a narrow case that didn't earn its keep. Wrappers that pass `--interactive` will now fail with cobra's "unknown flag" error. Use the natural defaults for bulk + TTY, or `--no-interactive` to force streaming output. (The deprecation warning landed in the prior release; this is the actual removal.)
 
 ## [0.0.21] — 2026-05-12
 

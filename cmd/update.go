@@ -22,7 +22,6 @@ type updateFlags struct {
 	DryRun        bool
 	All           bool
 	Category      string
-	Interactive   bool
 	NoInteractive bool
 }
 
@@ -32,7 +31,6 @@ func parseUpdateFlags(cmd *cobra.Command) updateFlags {
 		DryRun:        flagBool(f, "dry-run"),
 		All:           flagBool(f, "all"),
 		Category:      flagString(f, "category"),
-		Interactive:   flagBool(f, "interactive"),
 		NoInteractive: flagBool(f, "no-interactive"),
 	}
 }
@@ -61,9 +59,6 @@ with a one-line hint and continue.`,
 		if f.All && f.Category != "" {
 			return fmt.Errorf("--all and --category are mutually exclusive")
 		}
-		if f.Interactive && f.NoInteractive {
-			return fmt.Errorf("--interactive and --no-interactive are mutually exclusive")
-		}
 		bulk := f.All || f.Category != ""
 		if bulk && len(args) > 0 {
 			return fmt.Errorf("don't pass a theme name with --all or --category")
@@ -73,12 +68,7 @@ with a one-line hint and continue.`,
 		}
 
 		ctx := cmd.Context()
-		if f.Interactive {
-			emitInteractiveDeprecationWarning()
-		}
 		switch {
-		case f.Interactive:
-			return updateInteractiveTUI(ctx, args, bulk, f, out)
 		case f.NoInteractive:
 			if !bulk {
 				return updateOne(ctx, args[0], false, f, out)
@@ -98,11 +88,6 @@ func init() {
 	updateCmd.Flags().Bool("dry-run", false, "Print what would happen without re-fetching")
 	updateCmd.Flags().Bool("all", false, "Update every installed theme")
 	updateCmd.Flags().String("category", "", "Update every installed theme in this category")
-	// See cmd/install.go for why this is DIY'd instead of using cobra's
-	// pflag.MarkDeprecated — the cobra plumbing eats the warning before
-	// it can reach stderr. emitInteractiveDeprecationWarning lives in
-	// install.go and is shared by both commands.
-	updateCmd.Flags().Bool("interactive", false, "(deprecated) Force the live progress dashboard — now the default for bulk updates on a TTY")
 	updateCmd.Flags().Bool("no-interactive", false, "Force streaming output instead of the dashboard (useful for CI / log capture)")
 	_ = updateCmd.RegisterFlagCompletionFunc("category", validCategories)
 }

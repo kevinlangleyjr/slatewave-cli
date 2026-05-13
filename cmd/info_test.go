@@ -121,36 +121,3 @@ func TestInfoCmd_UnknownSlugErrors(t *testing.T) {
 		t.Errorf("expected `did you mean` hint, got: %v", err)
 	}
 }
-
-// --interactive and --no-interactive together must surface a clean
-// "mutually exclusive" error rather than silently letting one win.
-// Flags are set through cobra's flag set (not via package-level var
-// mutation) since the install command reads them through cmd.Flags()
-// at RunE time.
-func TestInstallCmd_InteractiveAndNoInteractiveConflict(t *testing.T) {
-	resetFlags := setFlags(t, installCmd, map[string]string{
-		"interactive":    "true",
-		"no-interactive": "true",
-		"all":            "true", // satisfy the bulk-shape check
-	})
-	defer resetFlags()
-
-	err := installCmd.RunE(installCmd, nil)
-	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("conflicting flags: err = %v, want `mutually exclusive`", err)
-	}
-}
-
-func TestUpdateCmd_InteractiveAndNoInteractiveConflict(t *testing.T) {
-	resetFlags := setFlags(t, updateCmd, map[string]string{
-		"interactive":    "true",
-		"no-interactive": "true",
-		"all":            "true",
-	})
-	defer resetFlags()
-
-	err := updateCmd.RunE(updateCmd, nil)
-	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("conflicting flags: err = %v, want `mutually exclusive`", err)
-	}
-}
