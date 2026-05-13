@@ -4,6 +4,8 @@ All notable changes to slatewave land here. Format roughly follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.0.22] — 2026-05-13
+
 ### Added
 
 - Adaptive light/dark palette. The CLI auto-adapts to the terminal's background via OSC 11 — slate text goes dark on a light terminal and light on a dark one, accent stops deepen on light backgrounds so the brand colors stay readable on either side.
@@ -298,7 +300,8 @@ The initial scaffold.
 - Release pipeline — goreleaser on tag push.
 - `slatewave list` reconciles state with reality (drops verify-failing records).
 
-[Unreleased]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.21...HEAD
+[Unreleased]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.22...HEAD
+[0.0.22]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.21...v0.0.22
 [0.0.21]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.20...v0.0.21
 [0.0.20]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.18...v0.0.19
