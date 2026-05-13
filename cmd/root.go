@@ -118,8 +118,22 @@ func Execute() {
 	}
 }
 
+// helpTemplate copies cobra's defaultHelpTemplate (v1.10.2) and appends
+// a single discoverability line pointing at the website. Cobra walks
+// the parent chain for templates, so setting this on rootCmd covers
+// every `slatewave <command> --help` invocation without per-command
+// wiring. The template is text-only (no lipgloss styling) so it renders
+// consistently across light and dark terminals — same reason we don't
+// override UsageTemplate for chrome coloring.
+const helpTemplate = `{{with (or .Long .Short)}}{{. | trimTrailingWhitespaces}}
+
+{{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}
+Theme catalog and more — https://getslatewave.com
+`
+
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "Stream every shell command, URL fetch, and file write to stderr")
+	rootCmd.SetHelpTemplate(helpTemplate)
 
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(uninstallCmd)

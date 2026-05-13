@@ -11,6 +11,7 @@ All notable changes to slatewave land here. Format roughly follows [Keep a Chang
 - `SECURITY.md` policy: reporting channels, supported versions, scope, and the hardening already in place.
 - `CONTRIBUTING.md` covering setup, adding a theme manifest, adding new install / activate types, the `make check` gate, and commit / PR conventions.
 - `CHANGELOG.md` seeded from full git history (this file).
+- `slatewave --help` (and every subcommand's `--help`) ends with a single-line footer pointing at https://getslatewave.com so users discovering the CLI find the theme catalog.
 
 ### Changed
 
