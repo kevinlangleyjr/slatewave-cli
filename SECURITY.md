@@ -5,7 +5,7 @@
 Please report security issues privately — don't open a public issue or PR with details.
 
 - **Preferred:** [GitHub private vulnerability reporting](https://github.com/kevinlangleyjr/slatewave-cli/security/advisories/new) — handled inside the repo, no extra hop.
-- **Fallback:** email `security@kevinlangleyjr.dev`. Reasonable response window is one week; if you don't hear back, ping again via the GitHub channel.
+- **Fallback:** email `me@kevinlangleyjr.dev`. Reasonable response window is one week; if you don't hear back, ping again via the GitHub channel.
 
 Include a clear repro (manifest fragment, command, observed behavior, expected behavior), the slatewave version (`slatewave --version`), and your OS / shell.
 
