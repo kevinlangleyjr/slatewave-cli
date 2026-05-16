@@ -15,6 +15,11 @@ detect_command = "command -v obsidian || test -d /Applications/Obsidian.app || f
 # the CLI doesn't know which vault the user wants. Clone the repo to
 # a known scratch location and let the user copy/symlink it into the
 # right vault themselves.
+#
+# Slatewave is also published to the Obsidian Community Themes catalog
+# (https://community.obsidian.md/themes/slatewave) — users who don't
+# need CLI-managed updates/uninstall can install directly from
+# Settings → Appearance → Themes → Manage inside Obsidian instead.
 type = "clone"
 repo = "https://github.com/kevinlangleyjr/obsidian-slatewave.git"
 clone_dest = "$HOME/.local/share/obsidian-slatewave"
@@ -24,6 +29,10 @@ instructions = [
   "    ln -s ~/.local/share/obsidian-slatewave/theme.css <vault>/.obsidian/themes/Slatewave/theme.css",
   "    ln -s ~/.local/share/obsidian-slatewave/manifest.json <vault>/.obsidian/themes/Slatewave/manifest.json",
   "In Obsidian, open Settings → Appearance → Themes → select Slatewave",
+  "",
+  "Prefer Obsidian-managed updates? Slatewave is also in the Community",
+  "Themes catalog: Settings → Appearance → Themes → Manage → search",
+  "\"Slatewave\". (https://community.obsidian.md/themes/slatewave)",
 ]
 
 [activate]
