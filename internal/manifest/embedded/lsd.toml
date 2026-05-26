@@ -3,11 +3,19 @@ slug = "lsd"
 name = "Slatewave for LSD"
 category = "terminal"
 detect_command = "lsd --version"
+# LSD 1.0.x silently ignores hex strings in colors.yaml; the variants
+# block below points 1.0.x users at the ANSI-256 file. version_regex
+# captures the X.Y.Z from the `lsd <ver>` line.
+version_regex = "lsd ([0-9]+\\.[0-9]+\\.[0-9]+)"
 
 [install]
 type = "curl"
 url = "https://raw.githubusercontent.com/kevinlangleyjr/lsd-slatewave/main/colors.yaml"
 dest = "$HOME/.config/lsd/colors.yaml"
+
+[[install.variants]]
+when_version = "<1.1.0"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/lsd-slatewave/main/colors-256.yaml"
 
 [activate]
 # lsd's `colors.yaml` is loaded only when ~/.config/lsd/config.yaml has
