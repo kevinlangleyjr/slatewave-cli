@@ -4,6 +4,12 @@ All notable changes to slatewave land here. Format roughly follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.0.23] — 2026-05-26
+
+### Fixed
+
+- LSD manifest restored its ANSI-256 variant for `lsd <1.1.0`. An earlier patch dropped the variant block under the (then-true) assumption that `colors-256.yaml` didn't exist in lsd-slatewave; that file has since been published, so 1.0.x users need the version-aware fallback again to avoid silently-ignored hex strings.
+
 ## [0.0.22] — 2026-05-13
 
 ### Added
@@ -300,7 +306,8 @@ The initial scaffold.
 - Release pipeline — goreleaser on tag push.
 - `slatewave list` reconciles state with reality (drops verify-failing records).
 
-[Unreleased]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.22...HEAD
+[Unreleased]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.23...HEAD
+[0.0.23]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.22...v0.0.23
 [0.0.22]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.21...v0.0.22
 [0.0.21]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.20...v0.0.21
 [0.0.20]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.19...v0.0.20
