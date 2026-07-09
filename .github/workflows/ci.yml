@@ -106,4 +106,8 @@ jobs:
         # the errcheck exclude list (fmt.Fprint* in stdout-style writers).
         uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          # Pin a concrete patch version. The action short-circuits version
+          # resolution when a fully-patched v2 version is given, skipping the
+          # fetch of github-action-config-v2.json from raw.githubusercontent.com
+          # that intermittently 429s and fails the job. Bump as needed.
+          version: v2.12.2
