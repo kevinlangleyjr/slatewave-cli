@@ -1,0 +1,34 @@
+[theme]
+slug = "nvchad"
+name = "Slatewave for NvChad"
+category = "editor"
+# NvChad-specific, not plain Neovim: key off the NvChad config (chadrc.lua)
+# or the base46 plugin so this is only offered to NvChad users. The
+# standalone `neovim` theme covers vanilla Neovim setups.
+detect_command = "test -f $HOME/.config/nvim/lua/chadrc.lua || test -d $HOME/.local/share/nvim/lazy/base46"
+
+[install]
+# NvChad loads custom base46 themes from lua/themes/ in the user's config
+# (base46 resolves `require('themes.<name>')`). Drop the theme file there;
+# the user then selects it via <leader>th or by setting the theme in chadrc.
+type = "curl"
+url = "https://raw.githubusercontent.com/kevinlangleyjr/nvchad-slatewave/main/lua/themes/slatewave.lua"
+dest = "$HOME/.config/nvim/lua/themes/slatewave.lua"
+done_message = """
+Theme file installed. Activate it either way:
+  • Press <leader>th in Neovim and pick "slatewave" (writes it to chadrc), or
+  • Set M.base46 = { theme = "slatewave" } in ~/.config/nvim/lua/chadrc.lua.
+Then restart Neovim. Full steps: https://getslatewave.com/themes/nvchad/
+"""
+
+[activate]
+# Activation is a chadrc.lua edit (or the <leader>th switcher, which writes
+# it for you). There's no reliable non-interactive edit of the nested base46
+# Lua table, so the CLI installs the file and hands off — see done_message.
+type = "none"
+
+[verify]
+command = "test -f $HOME/.config/nvim/lua/themes/slatewave.lua"
+
+[uninstall]
+done_message = "Reverted. Point your theme back in ~/.config/nvim/lua/chadrc.lua (or via <leader>th) and restart Neovim."
