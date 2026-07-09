@@ -4,6 +4,10 @@ All notable changes to slatewave land here. Format roughly follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+
+- `nvchad` theme manifest. Installs the native base46 theme into `~/.config/nvim/lua/themes/slatewave.lua`; the user activates it via `<leader>th` or by setting `M.base46 = { theme = "slatewave" }` in chadrc. Detection keys off the NvChad config so it's only offered to NvChad users, distinct from the vanilla `neovim` theme.
+
 ## [0.0.23] — 2026-05-26
 
 ### Fixed
