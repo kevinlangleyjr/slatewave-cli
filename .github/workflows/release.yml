@@ -44,3 +44,43 @@ jobs:
           # release workflow still produces binaries but the brew tap
           # update is skipped (goreleaser will warn loudly).
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+  # getslatewave.com builds its changelog and theme cards from the GitHub
+  # API at build time, so a release stays invisible there until the site
+  # rebuilds. Its only automatic trigger used to be a daily cron, which
+  # meant a release published just after a site build sat unlisted for up
+  # to 24 hours. Ping it as soon as the release is real.
+  #
+  # Runs after goreleaser so the dispatch can't announce a release that
+  # failed to publish. The release itself is already complete by this
+  # point — if this job goes red, the artifacts and the brew formula are
+  # fine and only the site rebuild needs a nudge (Actions → Refresh GitHub
+  # stats → Run workflow on getslatewave.com).
+  notify-site:
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger getslatewave.com rebuild
+        # Cross-repo dispatch needs a token that can write to
+        # getslatewave.com; the auto-provisioned GITHUB_TOKEN is scoped to
+        # this repo only. Provision a PAT with `contents: write` on
+        # getslatewave.com and add it as SITE_DISPATCH_TOKEN. Deliberately
+        # not reusing HOMEBREW_TAP_GITHUB_TOKEN — that one may be
+        # fine-grained and scoped to the tap repo, in which case it cannot
+        # dispatch here, and widening it would give the tap credential
+        # reach it doesn't need.
+        env:
+          SITE_DISPATCH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "${SITE_DISPATCH_TOKEN}" ]; then
+            echo "::error::SITE_DISPATCH_TOKEN is not set — getslatewave.com will not rebuild until its daily cron runs. The release itself published fine."
+            exit 1
+          fi
+          curl -fsSL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${SITE_DISPATCH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/kevinlangleyjr/getslatewave.com/dispatches \
+            -d "$(jq -nc --arg tag "${GITHUB_REF_NAME}" \
+                  '{event_type:"release-published",client_payload:{tag:$tag}}')"
+          echo "Dispatched release-published for ${GITHUB_REF_NAME}"
