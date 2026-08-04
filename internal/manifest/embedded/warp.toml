@@ -43,8 +43,16 @@ type = "none"
 
 [verify]
 # Match the per-OS clone destinations: macOS under ~/.warp, Linux under
-# XDG. Either passing means the theme file is somewhere Warp scans.
-command = "test -f $HOME/.warp/themes/slatewave/slatewave.yaml || test -f $HOME/.local/share/warp-terminal/themes/slatewave/slatewave.yaml"
+# XDG. Branch on `uname -s` rather than OR-ing both paths — Warp only
+# scans the one that belongs to the running platform, so accepting the
+# other would report a theme Warp cannot actually see. sublime-text ORs
+# its two paths on purpose (its bare clone_dest is the macOS path, so
+# pre-per-OS-picker builds really did land there on Linux); warp shipped
+# with the picker already in place, so no install of it can be sitting at
+# the wrong path and the OR only costs accuracy. Operands are quoted so a
+# $HOME containing spaces survives word splitting. verify has no per-OS
+# unix split, hence the in-command branch.
+command = 'case "$(uname -s)" in Darwin) test -f "$HOME/.warp/themes/slatewave/slatewave.yaml" ;; *) test -f "$HOME/.local/share/warp-terminal/themes/slatewave/slatewave.yaml" ;; esac'
 command_windows = 'if exist "%APPDATA%\warp\Warp\data\themes\slatewave\slatewave.yaml" (exit 0) else (exit 1)'
 
 [uninstall]
