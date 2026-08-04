@@ -6,6 +6,7 @@ All notable changes to slatewave land here. Format roughly follows [Keep a Chang
 
 ### Added
 
+- `warp` theme manifest. Clones [warp-slatewave](https://github.com/kevinlangleyjr/warp-slatewave) into Warp's themes directory — `~/.warp/themes/slatewave` on macOS, `~/.local/share/warp-terminal/themes/slatewave` on Linux, `%APPDATA%\warp\Warp\data\themes\slatewave` on Windows — and points the user at Settings → Appearance → Themes to select it. Activation stays manual because Warp owns and rewrites its own `settings.toml`. Detection keys off `warp-terminal` / `Warp.app` rather than `warp-cli`, which belongs to the unrelated Cloudflare WARP; the Windows detect checks both the single-user (`%LOCALAPPDATA%\Programs\Warp`) and all-users (`%PROGRAMFILES%\Warp`) install paths, since Warp adds neither to `PATH`.
 - `nvchad` theme manifest. Installs the native base46 theme into `~/.config/nvim/lua/themes/slatewave.lua`; the user activates it via `<leader>th` or by setting `M.base46 = { theme = "slatewave" }` in chadrc. Detection keys off the NvChad config so it's only offered to NvChad users, distinct from the vanilla `neovim` theme.
 
 ## [0.0.23] — 2026-05-26

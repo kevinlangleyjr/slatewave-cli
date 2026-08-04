@@ -1,0 +1,59 @@
+[theme]
+slug = "warp"
+name = "Slatewave for Warp"
+category = "terminal"
+supported_os = ["darwin", "linux", "windows"]
+# Warp Terminal ships as `warp-terminal` on Linux; on macOS it's an .app
+# bundle with no CLI on $PATH. Deliberately NOT `command -v warp` or
+# `warp-cli` — those belong to Cloudflare WARP, an unrelated product that
+# would false-positive on any machine running it.
+detect_command = "command -v warp-terminal || test -d /Applications/Warp.app"
+# Windows installs warp.exe under %LOCALAPPDATA%\Programs\Warp for a
+# single-user install or %PROGRAMFILES%\Warp for an all-users install,
+# and adds neither to PATH — so `where warp` misses both. Check the two
+# bundle paths directly with cmd.exe's `if exist`.
+detect_command_windows = 'if exist "%LOCALAPPDATA%\Programs\Warp\warp.exe" (exit 0) else if exist "%PROGRAMFILES%\Warp\warp.exe" (exit 0) else (exit 1)'
+
+[install]
+# Warp scans its themes directory recursively — that's how the official
+# warpdotdev/themes repo installs — so cloning into a subdirectory works
+# and leaves updates a `git pull` away. Per-OS override: macOS keeps
+# themes under ~/.warp, Linux follows XDG, Windows nests them inside the
+# roaming app data dir. The bare clone_dest stays as the macOS path to
+# match the rest of the manifest set. $APPDATA resolves through
+# os.ExpandEnv in the installer — cmd.exe's %VAR% form would not.
+type = "clone"
+repo = "https://github.com/kevinlangleyjr/warp-slatewave.git"
+clone_dest = "$HOME/.warp/themes/slatewave"
+clone_dest_darwin = "$HOME/.warp/themes/slatewave"
+clone_dest_linux = "$HOME/.local/share/warp-terminal/themes/slatewave"
+clone_dest_windows = "$APPDATA/warp/Warp/data/themes/slatewave"
+instructions = [
+  "In Warp, open Settings → Appearance → Themes (or run \"Open Theme Picker\" from the command palette)",
+  "Pick Slatewave — Warp watches the themes directory, so there's nothing to reload",
+]
+
+[activate]
+# Warp records the active theme in its own settings.toml as a nested
+# inline table ([appearance.themes] theme = { custom = { name, path } }).
+# That file is owned and rewritten by Warp on every preference change, so
+# hand-editing it risks clobbering unrelated settings on the next write.
+# The theme picker is two clicks — leave selection to the user.
+type = "none"
+
+[verify]
+# Match the per-OS clone destinations: macOS under ~/.warp, Linux under
+# XDG. Branch on `uname -s` rather than OR-ing both paths — Warp only
+# scans the one that belongs to the running platform, so accepting the
+# other would report a theme Warp cannot actually see. sublime-text ORs
+# its two paths on purpose (its bare clone_dest is the macOS path, so
+# pre-per-OS-picker builds really did land there on Linux); warp shipped
+# with the picker already in place, so no install of it can be sitting at
+# the wrong path and the OR only costs accuracy. Operands are quoted so a
+# $HOME containing spaces survives word splitting. verify has no per-OS
+# unix split, hence the in-command branch.
+command = 'case "$(uname -s)" in Darwin) test -f "$HOME/.warp/themes/slatewave/slatewave.yaml" ;; *) test -f "$HOME/.local/share/warp-terminal/themes/slatewave/slatewave.yaml" ;; esac'
+command_windows = 'if exist "%APPDATA%\warp\Warp\data\themes\slatewave\slatewave.yaml" (exit 0) else (exit 1)'
+
+[uninstall]
+done_message = "Reverted. Warp keeps Slatewave selected until you switch — pick another theme in Settings → Appearance → Themes."
