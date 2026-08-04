@@ -4,10 +4,25 @@ All notable changes to slatewave land here. Format roughly follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.0.25] — 2026-08-04
+
 ### Added
 
 - `warp` theme manifest. Clones [warp-slatewave](https://github.com/kevinlangleyjr/warp-slatewave) into Warp's themes directory — `~/.warp/themes/slatewave` on macOS, `~/.local/share/warp-terminal/themes/slatewave` on Linux, `%APPDATA%\warp\Warp\data\themes\slatewave` on Windows — and points the user at Settings → Appearance → Themes to select it. Activation stays manual because Warp owns and rewrites its own `settings.toml`. Detection keys off `warp-terminal` / `Warp.app` rather than `warp-cli`, which belongs to the unrelated Cloudflare WARP; the Windows detect checks both the single-user (`%LOCALAPPDATA%\Programs\Warp`) and all-users (`%PROGRAMFILES%\Warp`) install paths, since Warp adds neither to `PATH`.
+
+### Changed
+
+- Dependency refresh: `golang.org/x/sys` 0.46.0 → 0.47.0, `golang.org/x/mod` 0.37.0 → 0.38.0, and CI's `actions/setup-go` 6 → 7.
+
+## [0.0.24] — 2026-07-09
+
+### Added
+
 - `nvchad` theme manifest. Installs the native base46 theme into `~/.config/nvim/lua/themes/slatewave.lua`; the user activates it via `<leader>th` or by setting `M.base46 = { theme = "slatewave" }` in chadrc. Detection keys off the NvChad config so it's only offered to NvChad users, distinct from the vanilla `neovim` theme.
+
+### Changed
+
+- Dependency refresh: `golang.org/x/sys` 0.44.0 → 0.46.0, `golang.org/x/mod` 0.36.0 → 0.37.0, and CI's `actions/checkout` 6 → 7.
 
 ## [0.0.23] — 2026-05-26
 
@@ -311,7 +326,9 @@ The initial scaffold.
 - Release pipeline — goreleaser on tag push.
 - `slatewave list` reconciles state with reality (drops verify-failing records).
 
-[Unreleased]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.23...HEAD
+[Unreleased]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.25...HEAD
+[0.0.25]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.24...v0.0.25
+[0.0.24]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.23...v0.0.24
 [0.0.23]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.22...v0.0.23
 [0.0.22]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.21...v0.0.22
 [0.0.21]: https://github.com/kevinlangleyjr/slatewave-cli/compare/v0.0.20...v0.0.21
